@@ -2,7 +2,7 @@ package spinat.oraclescripter;
 
 import java.sql.*;
 
-public class MetaDataCodeGetter implements CodeGetter {
+public class MetaDataCodeGetter {
 
     public String getCode(Connection c, String objectType, String objectName, String schema) {
         try {

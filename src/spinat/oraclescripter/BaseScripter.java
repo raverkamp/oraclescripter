@@ -1,29 +1,11 @@
-// -*- Mode: java -*-
 package spinat.oraclescripter;
 
-import java.io.*;
 import java.sql.*;
 import java.util.*;
 
 public abstract class BaseScripter {
 
-    protected Connection connectFromProperties(java.util.Properties p) {
-        String dbhost = Helper.getProp(p, "dbhost");
-        String dbsid = Helper.getProp(p, "dbsid");
-        String dbport = Helper.getProp(p, "dbport", "1521");
-
-        String user = Helper.getProp(p, "user");
-        String pw = Helper.getProp(p, "pw");
-
-        String dburl = "jdbc:oracle:thin:" + user + "/" + pw + "@" + dbhost + ":" + dbport + ":" + dbsid;
-        System.out.println(dburl);
-        try {
-            Connection con = DriverManager.getConnection(dburl);
-            return con;
-        } catch (SQLException e) {
-            throw new Error(e);
-        }
-    }
+    
 
     public abstract void doit(java.util.Properties p);
 

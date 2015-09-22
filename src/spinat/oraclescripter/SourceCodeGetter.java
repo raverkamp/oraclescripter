@@ -3,26 +3,26 @@ package spinat.oraclescripter;
 import java.util.*;
 import java.sql.*;
 
-public class SourceCodeGetter implements CodeGetter {
+public class SourceCodeGetter  {
 
     private static final String[] source_stuff = new String[]{
         "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
 
-    @Override
-    public String getCode(Connection c, String objectType, String objectName, String schema) {
+  
+    public String getCode(Connection c, String objectType, String objectName) {
         if (Helper.arrayIndexOf(source_stuff, objectType) >= 0) {
-            return getUserSourceCode(c, objectType, objectName);
+            return getUserSourceCode(c, objectName, objectType);
         }
         if ("VIEW".equals(objectType)) {
-            return getViewSourceCode(c, objectName);
+            return getViewSourceCode(c,objectName);
         }
         if ("TRIGGER".equals(objectType)) {
-            return getTriggerSourceCode(c, objectName);
+            return getTriggerSourceCode(c,objectName);
         }
         throw new Error("unknown kind of object " + objectType);
     }
 
-    private String getUserSourceCode(Connection c, String objectType, String objectName) {
+    private String getUserSourceCode(Connection c, String objectName,String objectType) {
         try {
             String stmtext
                     = "declare a clob;\n"
@@ -42,6 +42,9 @@ public class SourceCodeGetter implements CodeGetter {
             Clob clob = s.getClob(3);
             String res = clob.getSubString(1, (int) clob.length());
             s.close();
+            if (res==null || res.trim().isEmpty()) {
+                return null;
+            }
             // eigentlich sollte das free durchgehen
             // aber es gibt einen AbstractMethodError ..
             // clob.free();
