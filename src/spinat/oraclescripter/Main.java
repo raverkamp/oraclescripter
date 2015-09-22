@@ -6,6 +6,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.text.ParseException;
 import java.util.ArrayList;
 
 public class Main {
@@ -124,31 +125,39 @@ public class Main {
         }
     }
 
-    public static void main(String[] args) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException {
+    public static void main(String[] args) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, ParseException {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (Exception e) {
             throw new Error("can not find oracle driver");
         }
 
-        if (args.length != 1) {
-            throw new Error("Expecting one Argument: the name of the property file");
+        if (args.length < 1) {
+            throw new Error("Expecting at least one Argument: the name of the property file");
+        }
+
+        String connectionDesc = null;
+        if (args.length == 2) {
+            connectionDesc = args[1];
         }
         java.util.Properties props = new java.util.Properties();
-       
+
         File f = new File(args[0]);
         try (
-            FileInputStream fi = new FileInputStream(f)) {
-            
+                FileInputStream fi = new FileInputStream(f)) {
+
             props.load(fi);
         }
-          
-        String scriptToDir  = Helper.getProp(props,"directory");
-        
-        File baseDir = new File(f.getAbsoluteFile().getParentFile(),scriptToDir);
+
+        String scriptToDir = Helper.getProp(props, "directory");
+
+        File baseDir = new File(f.getAbsoluteFile().getParentFile(), scriptToDir);
 
         // we have the configuration properties and the diretory they are in
-        Connection con = connectFromProperties(props);
+        if (connectionDesc == null) {
+            connectionDesc = Helper.getProp(props, "connection");
+        }
+        Connection con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
         // now get the objects
         ArrayList<DBObject> objects = getDBObjects(con, props);
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
