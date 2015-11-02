@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="oraclescripter" default="dist" basedir=".">
+    <description>
+        build file for jettyorajson
+    </description>
+
+    <property environment="env"/>
+    <property name="src" location="src"/>
+    <property name="build" location="build"/>
+    <property name="dist"  location="dist"/>
+    <property name="libs" location="libs"/>
+    <property name="jre7" value="${env.jre7}"/>
+  
+    <target name="clean"
+            description="clean up" >
+        <delete dir="${build}"/>
+        <delete dir="${dist}"/>
+    </target>
+  
+    <target name="init" depends="clean">
+        <mkdir dir="${build}"/>
+        <mkdir dir="${dist}"/>
+    </target>
+  
+    <target name="compile" depends="init"
+            description="compile the source " >
+        <javac target="1.7" source="1.7" srcdir="${src}" destdir="${build}" 
+               includeantruntime="false"
+               bootclasspath="${jre7}/lib/rt.jar"
+               deprecation="true"
+               debug="true">
+            <compilerarg value="-Xlint:unchecked"/>
+            <classpath>
+                <pathelement location="${libs}/ojdbc6.jar"/>
+            </classpath>
+        </javac>
+    </target>
+  
+    <target name="dist" depends="compile"
+            description="generate the distribution, with the main jar and a manifest which references the oracle jdbc file" >
+        <mkdir dir="${dist}/lib"/>
+        <copy file="${libs}/ojdbc6.jar" todir="${dist}/lib"/>
+        <jar jarfile="${dist}/oraclescripter.jar" basedir="${build}">
+            <manifest>
+                <attribute name="Main-Class"
+                           value="spinat.oraclescripter.Main"/>
+                <attribute name="Class-Path" value="lib/ojdbc6.jar"/>
+            </manifest>
+        </jar>
+    </target>    
+</project>

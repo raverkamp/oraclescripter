@@ -20,13 +20,13 @@ public abstract class BaseScripter {
         System.out.println("" + objs + obj_where + obj_file);
         String where_clause;
         if (objs != null) {
-            ArrayList a = Helper.objectsToArrayList(objs);
+            ArrayList<String> a = Helper.objectsToArrayList(objs);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         } else if (obj_where != null) {
 
             where_clause = obj_where;
         } else {
-            ArrayList a = Helper.objectsFromFile(obj_file);
+            ArrayList<String> a = Helper.objectsFromFile(obj_file);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         }
         return where_clause;
@@ -43,12 +43,12 @@ public abstract class BaseScripter {
             + " where object_type in ('PACKAGE','PACKAGE BODY','PROCEDURE',"
             + " 'FUNCTION','VIEW','TRIGGER','TYPE','TYPE BODY')";
 
-    protected ArrayList getObjects(Connection c, String where_clause, boolean specAndBodySplit) {
+    protected  ArrayList<DBObject> getObjects(Connection c, String where_clause, boolean specAndBodySplit) {
         String sql = (specAndBodySplit ? separatedSelect : combinedSelect)
                 + " and " + where_clause;
         try (PreparedStatement stmt = c.prepareStatement(sql);
                 ResultSet rs = stmt.executeQuery()) {
-            ArrayList obs = new ArrayList();
+            ArrayList<DBObject> obs = new ArrayList<>();
             while (rs.next()) {
                 String name = rs.getString(1);
                 String kind = rs.getString(2);

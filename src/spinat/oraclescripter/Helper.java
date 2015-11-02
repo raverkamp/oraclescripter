@@ -23,21 +23,21 @@ public class Helper {
                 + s.substring(p1 + toFind.length(), s.length());
     }
 
-    public static String arrayToInList(ArrayList a) {
+    public static String arrayToInList(ArrayList<String> a) {
         StringBuilder b = new StringBuilder();
         b.append("('doofer trick fuer leere Liste'");
-        for (Object a1 : a) {
+        for (String a1 : a) {
             b.append(",'");
-            b.append(stringReplace((String) a1, "'", "''"));
+            b.append(stringReplace(a1, "'", "''"));
             b.append("'");
         }
         b.append(")");
         return b.toString();
     }
 
-    public static ArrayList objectsToArrayList(String s) {
+    public static ArrayList<String> objectsToArrayList(String s) {
         String[] objs = s.split(",", -1);
-        ArrayList res = new ArrayList();
+        ArrayList<String> res = new ArrayList<>();
         for (int i = 0; i < objs.length; i++) {
             String o = objs[i].trim();
             if (o.length() > 0) {
@@ -86,11 +86,11 @@ public class Helper {
         }
     }
 
-    public static ArrayList objectsFromFile(String filename) {
+    public static ArrayList<String> objectsFromFile(String filename) {
         try {
             java.io.FileReader fr = new FileReader(filename);
             java.io.BufferedReader r = new BufferedReader(fr);
-            ArrayList res = new ArrayList();
+            ArrayList<String> res = new ArrayList<>();
             int lineno = 0;
             for (String l = r.readLine(); l != null; l = r.readLine()) {
                 lineno++;
@@ -180,6 +180,17 @@ public class Helper {
             return src.substring(0, p) + repl
                     + stringReplace(src.substring(p + what.length()), what, repl);
         }
+    }
+
+    public static Map<String, String> mkStringMap(String[] init) {
+        HashMap<String, String> res = new HashMap<>();
+        if ((init.length / 2) * 2 != init.length) {
+            throw new Error("string must have even length");
+        }
+        for (int i = 0; i < init.length; i = i + 2) {
+            res.put(init[i], init[i + 1]);
+        }
+        return res;
     }
 
 }

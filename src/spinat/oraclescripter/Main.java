@@ -8,6 +8,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Map;
 
 public class Main {
 
@@ -40,13 +41,13 @@ public class Main {
         }
         String where_clause;
         if (objs != null) {
-            ArrayList a = Helper.objectsToArrayList(objs);
+            ArrayList<String> a = Helper.objectsToArrayList(objs);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         } else if (obj_where != null) {
 
             where_clause = obj_where;
         } else {
-            ArrayList a = Helper.objectsFromFile(obj_file);
+            ArrayList<String> a = Helper.objectsFromFile(obj_file);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         }
         try (PreparedStatement stm = c.prepareStatement("select distinct object_name,object_type\n"
@@ -63,10 +64,9 @@ public class Main {
             }
             return res;
         }
-
     }
 
-    static StringMap suffixMap = new StringMap(new String[]{"package_body", "pkb",
+    static Map<String,String> suffixMap = Helper.mkStringMap(new String[]{"package_body", "pkb",
         "package", "pks",
         "type_body", "tbd",
         "type", "tsp",
@@ -95,7 +95,7 @@ public class Main {
                 throw new Error("could not create directory");
             }
         }
-        String suffix = props.getProperty(type + "_suffix", suffixMap.getString(type));
+        String suffix = props.getProperty(type + "_suffix", suffixMap.get(type));
         File file = new File(baseDir, objectName.toLowerCase() + "." + suffix);
         String code2 = true
                 ? Helper.stringUnixLineEnd(src)
