@@ -6,7 +6,6 @@ import java.io.*;
 public class Helper {
 
     // der text sollte mit Whitespace anfangen
-
     public static String removeLeadingWS(String s) {
         int i = 0;
         while (i < s.length() && Character.isWhitespace(s.charAt(i))) {
@@ -25,11 +24,11 @@ public class Helper {
     }
 
     public static String arrayToInList(ArrayList a) {
-        StringBuffer b = new StringBuffer();
+        StringBuilder b = new StringBuilder();
         b.append("('doofer trick fuer leere Liste'");
-        for (int i = 0; i < a.size(); i++) {
+        for (Object a1 : a) {
             b.append(",'");
-            b.append(stringReplace((String) a.get(i), "'", "''"));
+            b.append(stringReplace((String) a1, "'", "''"));
             b.append("'");
         }
         b.append(")");
@@ -126,8 +125,8 @@ public class Helper {
         }
     }
 
-    private static String oracleIdentBeginChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    private static String oracleIdentChars = oracleIdentBeginChars
+    private static final String oracleIdentBeginChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final String oracleIdentChars = oracleIdentBeginChars
             + "0123456789_$";
 
     public static boolean oracleIdentOK(String s) {
@@ -157,7 +156,7 @@ public class Helper {
     public static int arrayIndexOf(Object[] a, Object o) {
         for (int i = 0; i < a.length; i++) {
             if (o == null && a[i] == null
-                    || o.equals(a[i])) {
+                    || (o != null && o.equals(a[i]))) {
                 return i;
             }
         }

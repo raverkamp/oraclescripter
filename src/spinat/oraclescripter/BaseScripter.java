@@ -5,8 +5,6 @@ import java.util.*;
 
 public abstract class BaseScripter {
 
-    
-
     public abstract void doit(java.util.Properties p);
 
     protected String objectWhere(java.util.Properties p) {
@@ -46,11 +44,10 @@ public abstract class BaseScripter {
             + " 'FUNCTION','VIEW','TRIGGER','TYPE','TYPE BODY')";
 
     protected ArrayList getObjects(Connection c, String where_clause, boolean specAndBodySplit) {
-        try {
-            PreparedStatement stmt = c.prepareStatement((specAndBodySplit ? separatedSelect : combinedSelect)
-                    + " and " + where_clause);
-
-            ResultSet rs = stmt.executeQuery();
+        String sql = (specAndBodySplit ? separatedSelect : combinedSelect)
+                + " and " + where_clause;
+        try (PreparedStatement stmt = c.prepareStatement(sql);
+                ResultSet rs = stmt.executeQuery()) {
             ArrayList obs = new ArrayList();
             while (rs.next()) {
                 String name = rs.getString(1);
@@ -72,13 +69,10 @@ public abstract class BaseScripter {
                 DBObject o = new DBObject(kind, name);
                 obs.add(o);
             }
-
-            rs.close();
-            stmt.close();
             return obs;
         } catch (SQLException e) {
+            System.err.println("exception when retrieving data, sql=\n" + sql);
             throw new Error(e);
         }
     }
-
 }

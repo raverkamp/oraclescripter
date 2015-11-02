@@ -28,24 +28,6 @@ public class Main {
         }
     }
 
-    private static Connection connectFromProperties(java.util.Properties p) {
-        String dbhost = Helper.getProp(p, "dbhost");
-        String dbsid = Helper.getProp(p, "dbsid");
-        String dbport = Helper.getProp(p, "dbport", "1521");
-
-        String user = Helper.getProp(p, "user");
-        String pw = Helper.getProp(p, "pw");
-
-        String dburl = "jdbc:oracle:thin:" + user + "/" + pw + "@" + dbhost + ":" + dbport + ":" + dbsid;
-        System.out.println(dburl);
-        try {
-            Connection con = DriverManager.getConnection(dburl);
-            return con;
-        } catch (SQLException e) {
-            throw new Error(e);
-        }
-    }
-
     private static ArrayList<DBObject> getDBObjects(Connection c, java.util.Properties p) throws SQLException {
         String objs = Helper.getProp(p, "objects", null);
         String obj_where = Helper.getProp(p, "object-where", null);
@@ -78,7 +60,6 @@ public class Main {
                 String name = rs.getString(1);
                 String type = rs.getString(2);
                 res.add(new DBObject(type, name));
-
             }
             return res;
         }
@@ -143,9 +124,7 @@ public class Main {
         java.util.Properties props = new java.util.Properties();
 
         File f = new File(args[0]);
-        try (
-                FileInputStream fi = new FileInputStream(f)) {
-
+        try (FileInputStream fi = new FileInputStream(f)) {
             props.load(fi);
         }
 

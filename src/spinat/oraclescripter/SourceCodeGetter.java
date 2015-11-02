@@ -3,26 +3,25 @@ package spinat.oraclescripter;
 import java.util.*;
 import java.sql.*;
 
-public class SourceCodeGetter  {
+public class SourceCodeGetter {
 
     private static final String[] source_stuff = new String[]{
         "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
 
-  
     public String getCode(Connection c, String objectType, String objectName) {
         if (Helper.arrayIndexOf(source_stuff, objectType) >= 0) {
             return getUserSourceCode(c, objectName, objectType);
         }
         if ("VIEW".equals(objectType)) {
-            return getViewSourceCode(c,objectName);
+            return getViewSourceCode(c, objectName);
         }
         if ("TRIGGER".equals(objectType)) {
-            return getTriggerSourceCode(c,objectName);
+            return getTriggerSourceCode(c, objectName);
         }
         throw new Error("unknown kind of object " + objectType);
     }
 
-    private String getUserSourceCode(Connection c, String objectName,String objectType) {
+    private String getUserSourceCode(Connection c, String objectName, String objectType) {
         try {
             String stmtext
                     = "declare a clob;\n"
@@ -42,7 +41,7 @@ public class SourceCodeGetter  {
             Clob clob = s.getClob(3);
             String res = clob.getSubString(1, (int) clob.length());
             s.close();
-            if (res==null || res.trim().isEmpty()) {
+            if (res == null || res.trim().isEmpty()) {
                 return null;
             }
             // eigentlich sollte das free durchgehen
@@ -83,7 +82,7 @@ public class SourceCodeGetter  {
         }
     }
 
-    private static String default_ref_clause = "REFERENCING NEW AS NEW OLD AS OLD";
+    private static final String default_ref_clause = "REFERENCING NEW AS NEW OLD AS OLD";
 
     // we search for "user." case insensitive or "\"user\"."  case sensitive
     // if they are found we remove them 
@@ -92,7 +91,7 @@ public class SourceCodeGetter  {
         String txtu = txt.toUpperCase(Locale.US);
         String useru = user.toUpperCase(Locale.US);
         int p = txtu.indexOf(useru + ".");
-        String txt2 = null;
+        String txt2;
         if (p < 0) {
             txt2 = txt;
         } else {
@@ -101,7 +100,7 @@ public class SourceCodeGetter  {
         }
 
         int p2 = txt2.indexOf("\"" + user + "\".");
-        String txt3 = null;
+        String txt3;
         if (p2 < 0) {
             txt3 = txt2;
         } else {
@@ -151,7 +150,7 @@ public class SourceCodeGetter  {
                 String trigger_body = rs.getString(13);
                 String user = rs.getString(14);
 
-              // column_name != null is not implemented,
+                // column_name != null is not implemented,
                 // I think this can be used with inline tables
                 if (column_name != null) {
                     throw new Error("Trigger " + trigger_name + ": "
