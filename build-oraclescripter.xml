@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="oraclescripter" default="dist" basedir=".">
     <description>
-        build file for jettyorajson
+        build file for oraclescripter
     </description>
 
     <property environment="env"/>
@@ -38,7 +38,7 @@
   
     <target name="dist" depends="compile"
             description="generate the distribution, with the main jar and a manifest which references the oracle jdbc file" >
-        <mkdir dir="${dist}/lib"/>
+        <mkdir dir="${dist}/oraclescripter"/>
         <copy file="${libs}/ojdbc6.jar" todir="${dist}/lib"/>
         <jar jarfile="${dist}/oraclescripter.jar" basedir="${build}">
             <manifest>
@@ -47,5 +47,18 @@
                 <attribute name="Class-Path" value="lib/ojdbc6.jar"/>
             </manifest>
         </jar>
-    </target>    
+    </target>
+    
+      <target name="dist2" depends="compile"
+            description="generate the distribution, with the main jar and a manifest which references the oracle jdbc file" >
+        <mkdir dir="${dist}/oraclescripter"/>
+        <copy file="${libs}/ojdbc6.jar" todir="${dist}/oraclescripter"/>
+        <jar jarfile="${dist}/oraclescripter/main.jar" basedir="${build}">
+            <manifest>
+                <attribute name="Main-Class"
+                           value="spinat.oraclescripter.Main"/>
+                <attribute name="Class-Path" value="./ojdbc6.jar"/>
+            </manifest>
+        </jar>
+    </target>  
 </project>

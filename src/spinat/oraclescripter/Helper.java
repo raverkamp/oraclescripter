@@ -193,4 +193,20 @@ public class Helper {
         return res;
     }
 
+    static void ensureDirExists(String filename) {
+        try {
+            String s = new File(filename).getCanonicalPath();
+            int p = s.lastIndexOf("\\");
+            String dirname = s.substring(0, p);
+            if (!new File(dirname).exists()) {
+                boolean b = new File(dirname).mkdirs();
+                if (!b) {
+                    throw new Error("could not create directory");
+                }
+            }
+        } catch (IOException e) {
+            throw new Error(e);
+        }
+    }
+
 }

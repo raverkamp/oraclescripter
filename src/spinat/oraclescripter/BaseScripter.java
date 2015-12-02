@@ -43,7 +43,7 @@ public abstract class BaseScripter {
             + " where object_type in ('PACKAGE','PACKAGE BODY','PROCEDURE',"
             + " 'FUNCTION','VIEW','TRIGGER','TYPE','TYPE BODY')";
 
-    protected  ArrayList<DBObject> getObjects(Connection c, String where_clause, boolean specAndBodySplit) {
+    protected ArrayList<DBObject> getObjects(Connection c, String where_clause, boolean specAndBodySplit) {
         String sql = (specAndBodySplit ? separatedSelect : combinedSelect)
                 + " and " + where_clause;
         try (PreparedStatement stmt = c.prepareStatement(sql);

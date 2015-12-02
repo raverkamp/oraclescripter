@@ -11,23 +11,6 @@ import java.util.Map;
 
 public class Main {
 
-    static void ensureDirExists(String filename) {
-        try {
-            String s = new File(filename).getCanonicalPath();
-            int p = s.lastIndexOf("\\");
-            String dirname = s.substring(0, p);
-            System.out.println(dirname);
-            if (!new File(dirname).exists()) {
-                boolean b = new File(dirname).mkdirs();
-                if (!b) {
-                    throw new Error("could not create directory");
-                }
-            }
-        } catch (IOException e) {
-            throw new Error(e);
-        }
-    }
-
     private static ArrayList<DBObject> getDBObjects(Connection c, java.util.Properties p) throws SQLException {
         String objs = Helper.getProp(p, "objects", null);
         String obj_where = Helper.getProp(p, "object-where", null);
@@ -65,14 +48,16 @@ public class Main {
         }
     }
 
-    static Map<String,String> suffixMap = Helper.mkStringMap(new String[]{"package_body", "pkb",
-        "package", "pks",
-        "type_body", "tbd",
-        "type", "tsp",
-        "procedure", "prc",
-        "function", "fun",
-        "view", "vw",
-        "trigger", "trg"});
+    static Map<String, String> suffixMap = Helper.mkStringMap(
+            new String[]{
+                "package_body", "pkb",
+                "package", "pks",
+                "type_body", "tbd",
+                "type", "tsp",
+                "procedure", "prc",
+                "function", "fun",
+                "view", "vw",
+                "trigger", "trg"});
 
     private static void saveObject(File baseDir, java.util.Properties props,
             String objectType, String objectName, String src) throws FileNotFoundException, UnsupportedEncodingException {
