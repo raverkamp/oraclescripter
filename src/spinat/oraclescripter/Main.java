@@ -112,9 +112,7 @@ public class Main {
             props.load(fi);
         }
 
-        String scriptToDir = Helper.getProp(props, "directory");
-
-        File baseDir = new File(f.getAbsoluteFile().getParentFile(), scriptToDir);
+        File baseDir = new File(Helper.getProp(props, "directory")).getAbsoluteFile();
 
         // we have the configuration properties and the diretory they are in
         if (connectionDesc == null) {
