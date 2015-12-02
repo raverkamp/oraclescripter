@@ -2,6 +2,12 @@ package spinat.oraclescripter;
 
 import java.util.*;
 import java.io.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Helper {
 
@@ -202,6 +208,47 @@ public class Helper {
                 boolean b = new File(dirname).mkdirs();
                 if (!b) {
                     throw new Error("could not create directory");
+                }
+            }
+        } catch (IOException e) {
+            throw new Error(e);
+        }
+    }
+
+    static void deleteThing(Path p) {
+        try {
+            if (Files.isDirectory(p)) {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
+                    for (Path entry : stream) {
+                        deleteThing(entry);
+                    }
+                }
+            }
+            Files.delete(p);
+        } catch (IOException ex) {
+            throw new Error(ex);
+        }
+    }
+
+    static void deleteDirectoryContents(Path p) {
+        try {
+            if (!p.isAbsolute()) {
+                throw new Error("not a absolute path");
+            }
+
+            if (!Files.isDirectory(p)) {
+                throw new RuntimeException("this is mot a directory: " + p);
+            }
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
+                for (Path entry : stream) {
+                    String s = entry.getFileName().toString();
+                    if (!(s.equalsIgnoreCase("git")
+                            || s.equalsIgnoreCase("svn")
+                            || s.equalsIgnoreCase("git")
+                            || (s.length() > 1 && !Character.isAlphabetic(s.charAt(0))
+                            && !Character.isDigit(s.charAt(0))))) {
+                        deleteThing(entry);
+                    }
                 }
             }
         } catch (IOException e) {

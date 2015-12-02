@@ -1,6 +1,9 @@
 package spinat.oraclescripter;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -59,8 +62,8 @@ public class Main {
                 "view", "vw",
                 "trigger", "trg"});
 
-    private static void saveObject(File baseDir, java.util.Properties props,
-            String objectType, String objectName, String src) throws FileNotFoundException, UnsupportedEncodingException {
+    private static void saveObject(Path baseDir, java.util.Properties props,
+            String objectType, String objectName, String src) throws FileNotFoundException, UnsupportedEncodingException, IOException {
         String type;
         if (objectType.equals("PACKAGE BODY")) {
             type = "package_body";
@@ -70,24 +73,35 @@ public class Main {
             type = objectType.toLowerCase();
         }
         String dir = props.getProperty(type + "_dir", "");
+        final Path realBaseDir;
         if (!dir.equals("")) {
-            baseDir = new File(baseDir, dir);
+            realBaseDir = baseDir.resolve(dir);
+        } else {
+            realBaseDir = baseDir;
         }
-        if (!baseDir.exists()) {
-            boolean b = baseDir.mkdirs();
-            if (!b) {
-                throw new Error("could not create directory");
-            }
+        if (!Files.exists(realBaseDir)) {
+            Files.createDirectories(realBaseDir);
         }
         String suffix = props.getProperty(type + "_suffix", suffixMap.get(type));
-        File file = new File(baseDir, objectName.toLowerCase() + "." + suffix);
+        Path file = realBaseDir.resolve(objectName.toLowerCase() + "." + suffix);
         String code2 = true
                 ? Helper.stringUnixLineEnd(src)
                 : Helper.stringWindowsLineEnd(src);
         System.out.println(" ->" + file);
-        try (PrintStream ps = new PrintStream(file, "UTF-8")) {
+        try (PrintStream ps = new PrintStream(file.toFile(), "UTF-8")) {
             ps.append(code2);
         }
+    }
+    
+    static void prepareBaseDir(Path p) throws IOException {
+        if (!Files.exists(p)) {
+            Path pd = Files.createDirectories(p);
+        } else {
+            if (!Files.isDirectory(p)) {
+                throw new Error("this is not a directory: " + p);
+            }
+        }
+        Helper.deleteDirectoryContents(p);
     }
 
     public static void main(String[] args) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, ParseException {
@@ -112,8 +126,8 @@ public class Main {
             props.load(fi);
         }
 
-        File baseDir = new File(Helper.getProp(props, "directory")).getAbsoluteFile();
-
+        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
+        prepareBaseDir(baseDir);
         // we have the configuration properties and the diretory they are in
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
