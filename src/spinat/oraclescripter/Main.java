@@ -1,6 +1,8 @@
 package spinat.oraclescripter;
 
-import java.io.*;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,7 +23,7 @@ public class Main {
 
         if ((objs == null ? 0 : 1) + (obj_where == null ? 0 : 1)
                 + (obj_file == null ? 0 : 1) != 1) {
-            throw new Error("either property \"objects\", \"object-where\""
+            throw new RuntimeException("either property \"objects\", \"object-where\""
                     + " or \"object-file\" must be given");
         }
         String where_clause;
@@ -39,7 +41,9 @@ public class Main {
                 + "from user_objects \n"
                 + "where object_type in ('PACKAGE','PROCEDURE',\n"
                 + "'FUNCTION','VIEW','TRIGGER','TYPE')\n"
-                + " and " + where_clause);
+                + " and " + where_clause
+                // views come last, this important
+                + " order by object_type,object_name ");
                 ResultSet rs = stm.executeQuery()) {
             ArrayList<DBObject> res = new ArrayList<>();
             while (rs.next()) {
@@ -62,8 +66,9 @@ public class Main {
                 "view", "vw",
                 "trigger", "trg"});
 
-    private static void saveObject(Path baseDir, java.util.Properties props,
-            String objectType, String objectName, String src) throws FileNotFoundException, UnsupportedEncodingException, IOException {
+    private static Path saveObject(Path baseDir, java.util.Properties props,
+            String objectType, String objectName, String src)
+            throws IOException {
         String type;
         if (objectType.equals("PACKAGE BODY")) {
             type = "package_body";
@@ -72,18 +77,29 @@ public class Main {
         } else {
             type = objectType.toLowerCase();
         }
-        String dir = props.getProperty(type + "_dir", "");
-        final Path realBaseDir;
-        if (!dir.equals("")) {
-            realBaseDir = baseDir.resolve(dir);
+        String dir = props.getProperty("dir." + type, "");
+        String suffix = props.getProperty("suffix." + type, suffixMap.get(type));
+        String filename = objectName.toLowerCase() + "." + suffix;
+        final Path fileRelative;
+        if (dir.equals("")) {
+            fileRelative = Paths.get(dir, filename);
         } else {
-            realBaseDir = baseDir;
+            fileRelative = Paths.get(filename);
         }
-        if (!Files.exists(realBaseDir)) {
-            Files.createDirectories(realBaseDir);
+
+        {
+            final Path realBaseDir;
+            if (!dir.equals("")) {
+                realBaseDir = baseDir.resolve(dir);
+            } else {
+                realBaseDir = baseDir;
+            }
+            if (!Files.exists(realBaseDir)) {
+                Files.createDirectories(realBaseDir);
+            }
         }
-        String suffix = props.getProperty(type + "_suffix", suffixMap.get(type));
-        Path file = realBaseDir.resolve(objectName.toLowerCase() + "." + suffix);
+
+        Path file = baseDir.resolve(fileRelative);
         String code2 = true
                 ? Helper.stringUnixLineEnd(src)
                 : Helper.stringWindowsLineEnd(src);
@@ -91,28 +107,29 @@ public class Main {
         try (PrintStream ps = new PrintStream(file.toFile(), "UTF-8")) {
             ps.append(code2);
         }
+        return file;
     }
-    
+
     static void prepareBaseDir(Path p) throws IOException {
         if (!Files.exists(p)) {
             Path pd = Files.createDirectories(p);
         } else {
             if (!Files.isDirectory(p)) {
-                throw new Error("this is not a directory: " + p);
+                throw new RuntimeException("this is not a directory: " + p);
             }
         }
         Helper.deleteDirectoryContents(p);
     }
 
-    public static void main(String[] args) throws SQLException, FileNotFoundException, UnsupportedEncodingException, IOException, ParseException {
+    public static void main(String[] args) throws SQLException, IOException, ParseException {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (Exception e) {
-            throw new Error("can not find oracle driver");
+            throw new RuntimeException("can not find oracle driver");
         }
 
         if (args.length < 1) {
-            throw new Error("Expecting at least one Argument: the name of the property file");
+            throw new RuntimeException("Expecting at least one Argument: the name of the property file");
         }
 
         String connectionDesc = null;
@@ -121,8 +138,7 @@ public class Main {
         }
         java.util.Properties props = new java.util.Properties();
 
-        File f = new File(args[0]);
-        try (FileInputStream fi = new FileInputStream(f)) {
+        try (FileInputStream fi = new FileInputStream(args[0])) {
             props.load(fi);
         }
 
@@ -135,6 +151,7 @@ public class Main {
         Connection con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
         // now get the objects
         ArrayList<DBObject> objects = getDBObjects(con, props);
+        ArrayList<Path> allobjects = new ArrayList<>();
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
         SourceCodeGetter scg = new SourceCodeGetter();
         for (DBObject dbo : objects) {
@@ -144,16 +161,16 @@ public class Main {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
-                        saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n" + b + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n" + b + "\n/\n"));
                     } else {
-                        saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n"));
                     }
                 } else {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
                     saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n");
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
-                        saveObject(baseDir, props, "PACKAGE BODY", dbo.name, b + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, b + "\n/\n"));
                     }
                 }
             } else if (dbo.type.equals("TYPE")) {
@@ -161,21 +178,28 @@ public class Main {
                     String s = scg.getCode(con, "TYPE", dbo.name);
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
-                        saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n" + b + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n" + b + "\n/\n"));
                     } else {
-                        saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n"));
                     }
                 } else {
                     String s = scg.getCode(con, "TYPE", dbo.name);
                     saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n");
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
-                        saveObject(baseDir, props, "TYPE BODY", dbo.name, b + "\n/\n");
+                        allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, b + "\n/\n"));
                     }
                 }
             } else {
                 String s = scg.getCode(con, dbo.type, dbo.name);
-                saveObject(baseDir, props, dbo.type, dbo.name, s + "\n/\n");
+                allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, s + "\n/\n"));
+            }
+        }
+        Path allObjectsPath = baseDir.resolve("all-objects.sql");
+        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), "UTF-8")) {
+            for (Path p : allobjects) {
+                ps.append("@@").append(p.toString());
+                ps.println();
             }
         }
     }

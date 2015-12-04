@@ -18,7 +18,7 @@ public class SourceCodeGetter {
         if ("TRIGGER".equals(objectType)) {
             return getTriggerSourceCode(c, objectName);
         }
-        throw new Error("unknown kind of object " + objectType);
+        throw new RuntimeException("unknown kind of object " + objectType);
     }
 
     private String getUserSourceCode(Connection c, String objectName, String objectType) {
@@ -49,20 +49,24 @@ public class SourceCodeGetter {
             // clob.free();
             return "CREATE OR REPLACE " + res;
         } catch (SQLException e) {
-            throw new Error(e);
+            throw new RuntimeException(e);
         }
     }
 
     private String getViewSourceCode(Connection con, String view) {
         try {
             String stmtext = "select text from user_views where view_name = ?";
-            PreparedStatement s = con.prepareStatement(stmtext);
-            s.setString(1, view);
-            ResultSet rs = s.executeQuery();
-            rs.next();
-            String code = rs.getString(1);
-            rs.close();
-            s.close();
+            final String code;
+            try (PreparedStatement s = con.prepareStatement(stmtext)) {
+                s.setString(1, view);
+                try (ResultSet rs = s.executeQuery()) {
+                    if (rs.next()) {
+                        code = rs.getString(1);
+                    } else {
+                        throw new RuntimeException("view source found");
+                    }
+                }
+            }
             PreparedStatement s2 = con.prepareStatement("select column_name from user_tab_columns "
                     + "where table_name = ? order by column_id");
             s2.setString(1, view);
@@ -78,7 +82,7 @@ public class SourceCodeGetter {
                     + " (" + cols.substring(2, cols.length()) + ") as \n"
                     + code;
         } catch (SQLException e) {
-            throw new Error(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -153,7 +157,7 @@ public class SourceCodeGetter {
                 // column_name != null is not implemented,
                 // I think this can be used with inline tables
                 if (column_name != null) {
-                    throw new Error("Trigger " + trigger_name + ": "
+                    throw new RuntimeException("Trigger " + trigger_name + ": "
                             + " column_name in user_triggers is not null");
                 }
 
@@ -166,10 +170,10 @@ public class SourceCodeGetter {
                         + trigger_body;
                 return res;
             } else {
-                throw new Error("nicht gefunden");
+                throw new RuntimeException("could not find trigger: " + trigger);
             }
-        } catch (Exception e) {
-            throw new Error(e);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 }

@@ -5,9 +5,6 @@ import java.io.*;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class Helper {
 
@@ -51,7 +48,7 @@ public class Helper {
                     if (o.charAt(o.length() - 1) == '"') {
                         res.add(o.substring(1, o.length() - 1));
                     } else {
-                        throw new Error("wrong format of objectname: " + o);
+                        throw new RuntimeException("wrong format of objectname: " + o);
                     }
                 } else {
                     res.add(o.toUpperCase(Locale.US));
@@ -66,7 +63,7 @@ public class Helper {
     public static String getProp(java.util.Properties p, String name) {
         String s = p.getProperty(name);
         if (s == null) {
-            throw new Error("Property " + name + " not found");
+            throw new RuntimeException("Property " + name + " not found");
         } else {
             return s;
         }
@@ -88,7 +85,7 @@ public class Helper {
         } else if (s.equalsIgnoreCase("false")) {
             return false;
         } else {
-            throw new Error("Property " + name + " must be 'true' or 'false' but not '" + s + "'");
+            throw new RuntimeException("Property " + name + " must be 'true' or 'false' but not '" + s + "'");
         }
     }
 
@@ -115,7 +112,7 @@ public class Helper {
                 if (s.charAt(0) == '\"') {
                     int p = s.length();
                     if (s.charAt(p - 1) != '"') {
-                        throw new Error("strange object at line " + lineno);
+                        throw new RuntimeException("strange object at line " + lineno);
                     }
                     res.add(s.substring(1, p - 1));
                 } else {
@@ -127,7 +124,7 @@ public class Helper {
             fr.close();
             return res;
         } catch (java.io.IOException e) {
-            throw new Error(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -137,7 +134,7 @@ public class Helper {
 
     public static boolean oracleIdentOK(String s) {
         if (s.length() == 0) {
-            throw new Error("length of identifier must not be null");
+            throw new RuntimeException("length of identifier must not be null");
         }
         char fc = s.charAt(0);
         if (oracleIdentBeginChars.indexOf(fc) < 0) {
@@ -191,7 +188,7 @@ public class Helper {
     public static Map<String, String> mkStringMap(String[] init) {
         HashMap<String, String> res = new HashMap<>();
         if ((init.length / 2) * 2 != init.length) {
-            throw new Error("string must have even length");
+            throw new RuntimeException("string array must have even length");
         }
         for (int i = 0; i < init.length; i = i + 2) {
             res.put(init[i], init[i + 1]);
@@ -207,11 +204,11 @@ public class Helper {
             if (!new File(dirname).exists()) {
                 boolean b = new File(dirname).mkdirs();
                 if (!b) {
-                    throw new Error("could not create directory");
+                    throw new RuntimeException("could not create directory: " + dirname);
                 }
             }
         } catch (IOException e) {
-            throw new Error(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -226,18 +223,18 @@ public class Helper {
             }
             Files.delete(p);
         } catch (IOException ex) {
-            throw new Error(ex);
+            throw new RuntimeException(ex);
         }
     }
 
     static void deleteDirectoryContents(Path p) {
         try {
             if (!p.isAbsolute()) {
-                throw new Error("not a absolute path");
+                throw new RuntimeException("not a absolute path");
             }
 
             if (!Files.isDirectory(p)) {
-                throw new RuntimeException("this is mot a directory: " + p);
+                throw new RuntimeException("this is not a directory: " + p);
             }
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
                 for (Path entry : stream) {
@@ -252,7 +249,7 @@ public class Helper {
                 }
             }
         } catch (IOException e) {
-            throw new Error(e);
+            throw new RuntimeException(e);
         }
     }
 
