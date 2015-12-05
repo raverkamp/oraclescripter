@@ -84,7 +84,7 @@ public class Main {
             type ="package_spec";
         } else if (objectType.equals("TYPE BODY")) {
             type = "type_body";
-        } else if(objectType.equals("PACKAGE SPEC")) {
+        } else if(objectType.equals("TYPE SPEC")) {
             type = "type_spec";
         }else {
             type = objectType.toLowerCase();
