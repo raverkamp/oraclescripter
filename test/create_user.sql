@@ -1,4 +1,4 @@
-define user=perikles
+define user=&user
 define password=&user
 define tablespace=users
 

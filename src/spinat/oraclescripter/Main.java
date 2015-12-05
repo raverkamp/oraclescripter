@@ -185,7 +185,7 @@ public class Main {
                     }
                 } else {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
-                    saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, s + "\n/\n");
+                    allobjects.add(saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, s + "\n/\n"));
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, b + "\n/\n"));
@@ -202,7 +202,7 @@ public class Main {
                     }
                 } else {
                     String s = scg.getCode(con, "TYPE", dbo.name);
-                    saveObject(baseDir, props, "TYPE SPEC", dbo.name, s + "\n/\n");
+                    allobjects.add(saveObject(baseDir, props, "TYPE SPEC", dbo.name, s + "\n/\n"));
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, b + "\n/\n"));
