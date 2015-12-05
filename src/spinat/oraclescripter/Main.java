@@ -16,6 +16,12 @@ import java.util.Map;
 
 public class Main {
 
+    private static void abort(String msg) {
+        System.err.println("abort scripting:");
+        System.err.println(msg);
+        System.exit(1);
+    }
+
     private static ArrayList<DBObject> getDBObjects(Connection c, java.util.Properties p) throws SQLException {
         String objs = Helper.getProp(p, "objects", null);
         String obj_where = Helper.getProp(p, "object-where", null);
@@ -58,9 +64,11 @@ public class Main {
     static Map<String, String> suffixMap = Helper.mkStringMap(
             new String[]{
                 "package_body", "pkb",
-                "package", "pks",
+                "package_spec", "pks",
+                "package","pkg",
                 "type_body", "tbd",
-                "type", "tsp",
+                "type_spec", "tps",
+                "type","typ",
                 "procedure", "prc",
                 "function", "fun",
                 "view", "vw",
@@ -72,9 +80,13 @@ public class Main {
         String type;
         if (objectType.equals("PACKAGE BODY")) {
             type = "package_body";
+        } else if (objectType.equals("PACKAGE SPEC")) {
+            type ="package_spec";
         } else if (objectType.equals("TYPE BODY")) {
             type = "type_body";
-        } else {
+        } else if(objectType.equals("PACKAGE SPEC")) {
+            type = "type_spec";
+        }else {
             type = objectType.toLowerCase();
         }
         String dir = props.getProperty("dir." + type, "");
@@ -82,11 +94,10 @@ public class Main {
         String filename = objectName.toLowerCase() + "." + suffix;
         final Path fileRelative;
         if (dir.equals("")) {
-            fileRelative = Paths.get(dir, filename);
-        } else {
             fileRelative = Paths.get(filename);
+        } else {
+            fileRelative = Paths.get(dir,filename);
         }
-
         {
             final Path realBaseDir;
             if (!dir.equals("")) {
@@ -129,7 +140,7 @@ public class Main {
         }
 
         if (args.length < 1) {
-            throw new RuntimeException("Expecting at least one Argument: the name of the property file");
+            abort("Expecting at least one Argument: the name of the property file");
         }
 
         String connectionDesc = null;
@@ -138,8 +149,15 @@ public class Main {
         }
         java.util.Properties props = new java.util.Properties();
 
-        try (FileInputStream fi = new FileInputStream(args[0])) {
-            props.load(fi);
+        {
+            Path p = Paths.get(args[0]);
+            if (Files.isReadable(p)) {
+                try (FileInputStream fi = new FileInputStream(args[0])) {
+                    props.load(fi);
+                }
+            } else {
+                abort("can no read property file: " + p);
+            }
         }
 
         Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
@@ -167,7 +185,7 @@ public class Main {
                     }
                 } else {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
-                    saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n");
+                    saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, s + "\n/\n");
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, b + "\n/\n"));
@@ -184,7 +202,7 @@ public class Main {
                     }
                 } else {
                     String s = scg.getCode(con, "TYPE", dbo.name);
-                    saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n");
+                    saveObject(baseDir, props, "TYPE SPEC", dbo.name, s + "\n/\n");
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, b + "\n/\n"));
