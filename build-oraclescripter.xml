@@ -49,7 +49,7 @@
         </jar>
     </target>
     
-      <target name="dist2" depends="compile"
+    <target name="dist2" depends="compile"
             description="generate the distribution, with the main jar and a manifest which references the oracle jdbc file" >
         <mkdir dir="${dist}/oraclescripter"/>
         <copy file="${libs}/ojdbc6.jar" todir="${dist}/oraclescripter"/>

@@ -65,10 +65,10 @@ public class Main {
             new String[]{
                 "package_body", "pkb",
                 "package_spec", "pks",
-                "package","pkg",
+                "package", "pkg",
                 "type_body", "tbd",
                 "type_spec", "tps",
-                "type","typ",
+                "type", "typ",
                 "procedure", "prc",
                 "function", "fun",
                 "view", "vw",
@@ -81,12 +81,12 @@ public class Main {
         if (objectType.equals("PACKAGE BODY")) {
             type = "package_body";
         } else if (objectType.equals("PACKAGE SPEC")) {
-            type ="package_spec";
+            type = "package_spec";
         } else if (objectType.equals("TYPE BODY")) {
             type = "type_body";
-        } else if(objectType.equals("TYPE SPEC")) {
+        } else if (objectType.equals("TYPE SPEC")) {
             type = "type_spec";
-        }else {
+        } else {
             type = objectType.toLowerCase();
         }
         String dir = props.getProperty("dir." + type, "");
@@ -96,7 +96,7 @@ public class Main {
         if (dir.equals("")) {
             fileRelative = Paths.get(filename);
         } else {
-            fileRelative = Paths.get(dir,filename);
+            fileRelative = Paths.get(dir, filename);
         }
         {
             final Path realBaseDir;
@@ -130,6 +130,14 @@ public class Main {
             }
         }
         Helper.deleteDirectoryContents(p);
+    }
+
+    static String appendSlash(String s) {
+        if (s.endsWith("\n")) {
+            return s + "/\n";
+        } else {
+            return s + "\n/\n";
+        }
     }
 
     public static void main(String[] args) throws SQLException, IOException, ParseException {
@@ -179,16 +187,16 @@ public class Main {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
-                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n" + b + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s) + appendSlash(b)));
                     } else {
-                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, s + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s)));
                     }
                 } else {
                     String s = scg.getCode(con, "PACKAGE", dbo.name);
-                    allobjects.add(saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, s + "\n/\n"));
+                    allobjects.add(saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, appendSlash(s)));
                     String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
                     if (b != null) {
-                        allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, b + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, appendSlash(b)));
                     }
                 }
             } else if (dbo.type.equals("TYPE")) {
@@ -196,21 +204,21 @@ public class Main {
                     String s = scg.getCode(con, "TYPE", dbo.name);
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
-                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n" + b + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s) + appendSlash(b)));
                     } else {
-                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, s + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s)));
                     }
                 } else {
                     String s = scg.getCode(con, "TYPE", dbo.name);
-                    allobjects.add(saveObject(baseDir, props, "TYPE SPEC", dbo.name, s + "\n/\n"));
+                    allobjects.add(saveObject(baseDir, props, "TYPE SPEC", dbo.name, appendSlash(s)));
                     String b = scg.getCode(con, "TYPE BODY", dbo.name);
                     if (b != null) {
-                        allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, b + "\n/\n"));
+                        allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, appendSlash(b)));
                     }
                 }
             } else {
                 String s = scg.getCode(con, dbo.type, dbo.name);
-                allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, s + "\n/\n"));
+                allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, appendSlash(s)));
             }
         }
         Path allObjectsPath = baseDir.resolve("all-objects.sql");

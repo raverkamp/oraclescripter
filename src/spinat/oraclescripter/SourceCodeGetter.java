@@ -33,14 +33,15 @@ public class SourceCodeGetter {
                     + "  end loop;\n"
                     + "  ?:=a;\n"
                     + "end;\n";
-            CallableStatement s = c.prepareCall(stmtext);
-            s.setString(1, objectName);
-            s.setString(2, objectType);
-            s.registerOutParameter(3, java.sql.Types.CLOB);
-            boolean x = s.execute();
-            Clob clob = s.getClob(3);
-            String res = clob.getSubString(1, (int) clob.length());
-            s.close();
+            String res;
+            try (CallableStatement s = c.prepareCall(stmtext)) {
+                s.setString(1, objectName);
+                s.setString(2, objectType);
+                s.registerOutParameter(3, java.sql.Types.CLOB);
+                boolean x = s.execute();
+                Clob clob = s.getClob(3);
+                res = clob.getSubString(1, (int) clob.length());
+            }
             if (res == null || res.trim().isEmpty()) {
                 return null;
             }
@@ -67,18 +68,19 @@ public class SourceCodeGetter {
                     }
                 }
             }
-            PreparedStatement s2 = con.prepareStatement("select column_name from user_tab_columns "
-                    + "where table_name = ? order by column_id");
-            s2.setString(1, view);
-            ResultSet rs2 = s2.executeQuery();
-            String cols = "";
-            while (rs2.next()) {
-                String column = rs2.getString(1);
-                cols = cols + ", " + Helper.maybeOracleQuote(column);
+            String cols;
+            try (PreparedStatement s2 = con.prepareStatement("select column_name from user_tab_columns "
+                    + "where table_name = ? order by column_id")) {
+                s2.setString(1, view);
+                try (ResultSet rs2 = s2.executeQuery()) {
+                    cols = "";
+                    while (rs2.next()) {
+                        String column = rs2.getString(1);
+                        cols = cols + ", " + Helper.maybeOracleQuote(column);
+                    }
+                }
             }
-            rs2.close();
-            s2.close();
-            return "CREATE OR REPLACE VIEW " + Helper.maybeOracleQuote(view)
+            return "CREATE OR REPLACE FORCE VIEW " + Helper.maybeOracleQuote(view)
                     + " (" + cols.substring(2, cols.length()) + ") as \n"
                     + code;
         } catch (SQLException e) {
