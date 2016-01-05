@@ -1,8 +1,10 @@
 package spinat.oraclescripter;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,6 +12,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Map;
@@ -221,12 +224,63 @@ public class Main {
                 allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, appendSlash(s)));
             }
         }
+        boolean private_synonyms = Helper.getPropBool(props, "private-synonyms", true);
+        if (private_synonyms) {
+            Path p = writePrivateSynonyms(con, baseDir);
+            allobjects.add(0, p);
+        }
+        boolean sequences = Helper.getPropBool(props, "sequences", true);
+        if (sequences) {
+            Path p = writeSequences(con, baseDir);
+            allobjects.add(0, p);
+        }
+        
         Path allObjectsPath = baseDir.resolve("all-objects.sql");
         try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), "UTF-8")) {
             for (Path p : allobjects) {
                 ps.append("@@").append(p.toString());
                 ps.println();
             }
+        }
+    }
+
+    static Path writePrivateSynonyms(Connection con, Path baseDir)
+            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+        Path synPath = baseDir.resolve("private-synonyms.sql");
+        try (PrintStream ps = new PrintStream(synPath.toFile(), "UTF-8")) {
+            try (Statement stm = con.createStatement();
+                    ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
+                while (rs.next()) {
+                    String s = "create synonym " + rs.getString(1) + " for " + rs.getString(2) + "." + rs.getString(3);
+                    String li = rs.getString(4);
+                    if (li != null) {
+                        s = s + "@" + li;
+                    }
+                    s = s + ";";
+                    ps.println(s);
+                }
+            }
+            return synPath;
+        }
+    }
+
+    static Path writeSequences(Connection con, Path baseDir)
+            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+        Path synPath = baseDir.resolve("sequences.sql");
+        try (PrintStream ps = new PrintStream(synPath.toFile(), "UTF-8")) {
+            try (Statement stm = con.createStatement();
+                    ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
+                while (rs.next()) {
+                    String s = "create squence " + rs.getString(1);
+                    String incby = rs.getString(2);
+                    if (!incby.equals("1")) {
+                        s = s + " increment by " + incby;
+                    }
+                    s = s + ";";
+                    ps.println(s);
+                }
+            }
+            return synPath;
         }
     }
 }
