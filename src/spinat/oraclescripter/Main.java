@@ -251,7 +251,7 @@ public class Main {
             try (Statement stm = con.createStatement();
                     ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
                 while (rs.next()) {
-                    String s = "create synonym " + rs.getString(1) + " for " + rs.getString(2) + "." + rs.getString(3);
+                    String s = "create or replace synonym " + rs.getString(1) + " for " + rs.getString(2) + "." + rs.getString(3);
                     String li = rs.getString(4);
                     if (li != null) {
                         s = s + "@" + li;
@@ -271,7 +271,7 @@ public class Main {
             try (Statement stm = con.createStatement();
                     ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
                 while (rs.next()) {
-                    String s = "create squence " + rs.getString(1);
+                    String s = "create sequence " + rs.getString(1);
                     String incby = rs.getString(2);
                     if (!incby.equals("1")) {
                         s = s + " increment by " + incby;
