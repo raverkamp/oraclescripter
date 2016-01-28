@@ -124,9 +124,12 @@ public class Main {
         return file;
     }
 
-    static void prepareBaseDir(Path p) throws IOException {
+    static void prepareBaseDir(Path p, boolean doGit) throws IOException {
         if (!Files.exists(p)) {
             Path pd = Files.createDirectories(p);
+            if (doGit) {
+                GitHelper.createRepoInDir(pd.toFile());
+            }
         } else {
             if (!Files.isDirectory(p)) {
                 throw new RuntimeException("this is not a directory: " + p);
@@ -172,7 +175,8 @@ public class Main {
         }
 
         Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
-        prepareBaseDir(baseDir);
+        boolean usegit = Helper.getPropBool(props, "usegit", false);
+        prepareBaseDir(baseDir, usegit);
         // we have the configuration properties and the diretory they are in
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
@@ -234,13 +238,17 @@ public class Main {
             Path p = writeSequences(con, baseDir);
             allobjects.add(0, p);
         }
-        
+
         Path allObjectsPath = baseDir.resolve("all-objects.sql");
         try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), "UTF-8")) {
             for (Path p : allobjects) {
-                ps.append("@@").append(p.toString());
+                Path rel = baseDir.relativize(p);
+                ps.append("@@").append(rel.toString());
                 ps.println();
             }
+        }
+        if (usegit) {
+            GitHelper.AddVersion(baseDir.toFile(), "das war es");
         }
     }
 
@@ -283,4 +291,5 @@ public class Main {
             return synPath;
         }
     }
+
 }

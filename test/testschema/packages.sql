@@ -4,6 +4,8 @@ procedure p1;
 
 function p2 return number;
 
+-- a comment
+
 end;
 /
 
