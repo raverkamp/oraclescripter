@@ -134,6 +134,7 @@ public class Main {
             if (!Files.isDirectory(p)) {
                 throw new RuntimeException("this is not a directory: " + p);
             }
+            GitHelper.checkForRepoInDir(p.toFile());
         }
         Helper.deleteDirectoryContents(p);
     }

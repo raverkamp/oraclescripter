@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.eclipse.jgit.api.AddCommand;
 import org.eclipse.jgit.api.CommitCommand;
 import org.eclipse.jgit.api.Git;
@@ -15,17 +16,13 @@ import org.eclipse.jgit.errors.NoWorkTreeException;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.RepositoryBuilder;
 
-/**
- *
- * @author roland
- */
 public class GitHelper {
-    
+
     public static void createRepoInDir(File dir) throws IOException {
-        
+
         try {
             Git git = Git.init().setDirectory(dir).setBare(false).call();
-            
+            git.close();
             RepositoryBuilder rb = new RepositoryBuilder();
             rb.setGitDir(dir);
             rb.setMustExist(true);
@@ -40,7 +37,23 @@ public class GitHelper {
             throw new RuntimeException(ex);
         }
     }
-    
+
+    public static void checkForRepoInDir(File dir) throws IOException {
+        try {
+            RepositoryBuilder rb = new RepositoryBuilder();
+            File f = dir;
+            rb.addCeilingDirectory(f);
+            rb.setMustExist(true);
+            rb.findGitDir(f);
+            Repository r = rb.build();
+            Git g = new Git(r);
+            StatusCommand stc = g.status();
+            Status st = stc.call();
+        } catch (GitAPIException ex) {
+            throw new RuntimeException("no repo found");
+        }
+    }
+
     public static void AddVersion(File dir, String msg) throws IOException {
         try {
             RepositoryBuilder rb = new RepositoryBuilder();
@@ -65,13 +78,13 @@ public class GitHelper {
                 ac.call();
                 someChange = true;
             }
-            
+
             System.out.println("# removed Objects");
             Set<String> mi = st.getMissing();
             if (!mi.isEmpty()) {
                 AddCommand ac = g.add();
                 ac.setUpdate(true);
-                
+
                 for (String s : mi) {
                     System.out.println(s);
                     ac.addFilepattern(s);
@@ -79,13 +92,13 @@ public class GitHelper {
                 ac.call();
                 someChange = true;
             }
-            
+
             System.out.println("# changed Objects");
             Set<String> mo = st.getModified();
             if (!mo.isEmpty()) {
                 AddCommand ac = g.add();
                 ac.setUpdate(true);
-                
+
                 for (String s : st.getModified()) {
                     System.out.println(s);
                     ac.addFilepattern(s);
@@ -106,7 +119,7 @@ public class GitHelper {
         } catch (GitAPIException e) {
             throw new RuntimeException(e);
         }
-        
+
     }
-    
+
 }
