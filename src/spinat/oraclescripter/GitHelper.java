@@ -19,23 +19,13 @@ import org.eclipse.jgit.lib.RepositoryBuilder;
 public class GitHelper {
 
     public static void createRepoInDir(File dir) throws IOException {
-
         try {
             Git git = Git.init().setDirectory(dir).setBare(false).call();
             git.close();
-            RepositoryBuilder rb = new RepositoryBuilder();
-            rb.setGitDir(dir);
-            rb.setMustExist(true);
-            Repository r = rb.build();
-            Git g = new Git(r);
-            StatusCommand stc = g.status();
-            Status st = stc.call();
-            if (!st.isClean()) {
-                throw new RuntimeException("creating REPO failed");
-            }
         } catch (GitAPIException ex) {
             throw new RuntimeException(ex);
         }
+        checkForRepoInDir(dir);
     }
 
     public static void checkForRepoInDir(File dir) throws IOException {

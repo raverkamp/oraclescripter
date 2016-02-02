@@ -24,31 +24,24 @@ public class SourceCodeGetter {
     private String getUserSourceCode(Connection c, String objectName, String objectType) {
         try {
             String stmtext
-                    = "declare a clob;\n"
-                    + "begin\n"
-                    + "  dbms_lob.createtemporary(a,true);\n"
-                    + "  for r in (select * from user_source \n"
-                    + " where name=? and type=? order by line) loop\n"
-                    + "      dbms_lob.append(a,r.text);\n"
-                    + "  end loop;\n"
-                    + "  ?:=a;\n"
-                    + "end;\n";
-            String res;
-            try (CallableStatement s = c.prepareCall(stmtext)) {
-                s.setString(1, objectName);
-                s.setString(2, objectType);
-                s.registerOutParameter(3, java.sql.Types.CLOB);
-                boolean x = s.execute();
-                Clob clob = s.getClob(3);
-                res = clob.getSubString(1, (int) clob.length());
+                    = "select text from user_source \n"
+                    + " where name=? and type=? order by line";
+
+            try (PreparedStatement stm = c.prepareStatement(stmtext)) {
+                stm.setString(1, objectName);
+                stm.setString(2, objectType);
+                StringBuilder b = new StringBuilder();
+                try (ResultSet rs = stm.executeQuery()) {
+                    while (rs.next()) {
+                        b.append(rs.getString(1));
+                    }
+                    String res = b.toString();
+                    if (res == null || res.trim().isEmpty()) {
+                        return null;
+                    }
+                    return "CREATE OR REPLACE " + res;
+                }
             }
-            if (res == null || res.trim().isEmpty()) {
-                return null;
-            }
-            // eigentlich sollte das free durchgehen
-            // aber es gibt einen AbstractMethodError ..
-            // clob.free();
-            return "CREATE OR REPLACE " + res;
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
