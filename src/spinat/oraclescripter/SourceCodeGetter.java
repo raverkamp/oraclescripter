@@ -39,7 +39,7 @@ public class SourceCodeGetter {
                     if (res == null || res.trim().isEmpty()) {
                         return null;
                     }
-                    return "CREATE OR REPLACE " + res;
+                    return "create or replace " + res;
                 }
             }
         } catch (SQLException e) {
@@ -73,7 +73,7 @@ public class SourceCodeGetter {
                     }
                 }
             }
-            return "CREATE OR REPLACE FORCE VIEW " + Helper.maybeOracleQuote(view)
+            return "create or replace force view " + Helper.maybeOracleQuote(view)
                     + " (" + cols.substring(2, cols.length()) + ") as \n"
                     + code;
         } catch (SQLException e) {

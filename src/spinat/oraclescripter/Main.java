@@ -40,7 +40,6 @@ public class Main {
             ArrayList<String> a = Helper.objectsToArrayList(objs);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         } else if (obj_where != null) {
-
             where_clause = obj_where;
         } else {
             ArrayList<String> a = Helper.objectsFromFile(obj_file);
@@ -51,7 +50,7 @@ public class Main {
                 + "where object_type in ('PACKAGE','PROCEDURE',\n"
                 + "'FUNCTION','VIEW','TRIGGER','TYPE')\n"
                 + " and " + where_clause
-                // views come last, this important
+                // views come last, this is important
                 + " order by object_type,object_name ");
                 ResultSet rs = stm.executeQuery()) {
             ArrayList<DBObject> res = new ArrayList<>();
@@ -260,7 +259,13 @@ public class Main {
             try (Statement stm = con.createStatement();
                     ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
                 while (rs.next()) {
-                    String s = "create or replace synonym " + rs.getString(1) + " for " + rs.getString(2) + "." + rs.getString(3);
+                    String sname = rs.getString(1);
+                    String schema = rs.getString(2);
+                    String obj = rs.getString(3);
+                    String s = "create or replace synonym "
+                            + Helper.maybeOracleQuote(sname) + " for "
+                            + Helper.maybeOracleQuote(schema) + "."
+                            + Helper.maybeOracleQuote(obj);
                     String li = rs.getString(4);
                     if (li != null) {
                         s = s + "@" + li;
@@ -280,7 +285,7 @@ public class Main {
             try (Statement stm = con.createStatement();
                     ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
                 while (rs.next()) {
-                    String s = "create sequence " + rs.getString(1);
+                    String s = "create sequence " + Helper.maybeOracleQuote(rs.getString(1));
                     String incby = rs.getString(2);
                     if (!incby.equals("1")) {
                         s = s + " increment by " + incby;

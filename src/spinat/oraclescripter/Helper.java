@@ -150,7 +150,7 @@ public class Helper {
 
     public static String maybeOracleQuote(String s) {
         if (oracleIdentOK(s)) {
-            return s;
+            return s.toLowerCase();
         } else {
             return "\"" + s + "\"";
         }
