@@ -63,6 +63,22 @@ public class Main {
         }
     }
 
+    private static void writeTextFile(Path file, String txt, String encoding,
+            boolean windowsLineEnd) throws IOException {
+        if (Files.exists(file)) {
+            throw new RuntimeException("file " + file + " already exists");
+        }
+        String s;
+        if (windowsLineEnd) {
+            s = Helper.stringWindowsLineEnd(txt);
+        } else {
+            s = Helper.stringUnixLineEnd(txt);
+        }
+        try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
+            ps.append(s);
+        }
+    }
+
     static Map<String, String> suffixMap = Helper.mkStringMap(
             new String[]{
                 "package_body", "pkb",
@@ -114,16 +130,7 @@ public class Main {
         }
 
         Path file = baseDir.resolve(fileRelative);
-        if (Files.exists(file)) {
-            throw new RuntimeException("file " + file +" already exists");
-        }
-        String code2 = true
-                ? Helper.stringUnixLineEnd(src)
-                : Helper.stringWindowsLineEnd(src);
-        System.out.println(" ->" + file);
-        try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
-            ps.append(code2);
-        }
+        writeTextFile(file, src, encoding, false);
         return file;
     }
 
@@ -150,48 +157,50 @@ public class Main {
         }
     }
 
-    static Path writePrivateSynonyms(Connection con, Path baseDir,String encoding)
-            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+    static Path writePrivateSynonyms(Connection con, Path baseDir, String encoding)
+            throws IOException, SQLException {
         Path synPath = baseDir.resolve("private-synonyms.sql");
-        try (PrintStream ps = new PrintStream(synPath.toFile(), encoding)) {
-            try (Statement stm = con.createStatement();
-                    ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
-                while (rs.next()) {
-                    String sname = rs.getString(1);
-                    String schema = rs.getString(2);
-                    String obj = rs.getString(3);
-                    String s = "create or replace synonym "
-                            + Helper.maybeOracleQuote(sname) + " for "
-                            + Helper.maybeOracleQuote(schema) + "."
-                            + Helper.maybeOracleQuote(obj);
-                    String li = rs.getString(4);
-                    if (li != null) {
-                        s = s + "@" + li;
-                    }
-                    s = s + ";";
-                    ps.println(s);
+        StringBuilder b = new StringBuilder();
+        try (Statement stm = con.createStatement();
+                ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
+            while (rs.next()) {
+                String sname = rs.getString(1);
+                String schema = rs.getString(2);
+                String obj = rs.getString(3);
+                String s = "create or replace synonym "
+                        + Helper.maybeOracleQuote(sname) + " for "
+                        + Helper.maybeOracleQuote(schema) + "."
+                        + Helper.maybeOracleQuote(obj);
+                String li = rs.getString(4);
+                if (li != null) {
+                    s = s + "@" + li;
                 }
+                s = s + ";";
+                b.append(s);
+                b.append("\n");
             }
-            return synPath;
         }
+        writeTextFile(synPath, b.toString(), encoding, false);
+        return synPath;
     }
 
-    static Path writeSequences(Connection con, Path baseDir,String encoding)
-            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+    static Path writeSequences(Connection con, Path baseDir, String encoding)
+            throws IOException, SQLException {
         Path synPath = baseDir.resolve("sequences.sql");
-        try (PrintStream ps = new PrintStream(synPath.toFile(), encoding)) {
-            try (Statement stm = con.createStatement();
-                    ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
-                while (rs.next()) {
-                    String s = "create sequence " + Helper.maybeOracleQuote(rs.getString(1));
-                    String incby = rs.getString(2);
-                    if (!incby.equals("1")) {
-                        s = s + " increment by " + incby;
-                    }
-                    s = s + ";";
-                    ps.println(s);
+        StringBuilder b = new StringBuilder();
+        try (Statement stm = con.createStatement();
+                ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
+            while (rs.next()) {
+                String s = "create sequence " + Helper.maybeOracleQuote(rs.getString(1));
+                String incby = rs.getString(2);
+                if (!incby.equals("1")) {
+                    s = s + " increment by " + incby;
                 }
+                s = s + ";";
+                b.append(s);
+                b.append("\n");
             }
+            writeTextFile(synPath, b.toString(), encoding, false);
             return synPath;
         }
     }
@@ -236,7 +245,7 @@ public class Main {
         }
 
         String encoding = Helper.getProp(props, "encoding", "UTF-8");
-        
+
         Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
@@ -297,9 +306,9 @@ public class Main {
             Path p = writeSequences(con, baseDir, encoding);
             allobjects.add(0, p);
         }
-        
+
         Path allObjectsPath = baseDir.resolve("all-objects.sql");
-        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(),encoding)) {
+        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), encoding)) {
             for (Path p : allobjects) {
                 Path rel = baseDir.relativize(p);
                 ps.append("@@").append(rel.toString());
