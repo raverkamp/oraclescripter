@@ -18,3 +18,10 @@ begin
   null;
 end;
 /
+
+create  or replace procedure ascii_crash as
+begin
+-- ä ö ü
+  null;
+end;
+/
