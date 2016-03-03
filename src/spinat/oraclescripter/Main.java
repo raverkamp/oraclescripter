@@ -79,6 +79,7 @@ public class Main {
     private static Path saveObject(Path baseDir, java.util.Properties props,
             String objectType, String objectName, String src)
             throws IOException {
+        String encoding = Helper.getProp(props, "encoding", "UTF-8");
         String type;
         if (objectType.equals("PACKAGE BODY")) {
             type = "package_body";
@@ -113,11 +114,14 @@ public class Main {
         }
 
         Path file = baseDir.resolve(fileRelative);
+        if (Files.exists(file)) {
+            throw new RuntimeException("file " + file +" already exists");
+        }
         String code2 = true
                 ? Helper.stringUnixLineEnd(src)
                 : Helper.stringWindowsLineEnd(src);
         System.out.println(" ->" + file);
-        try (PrintStream ps = new PrintStream(file.toFile(), "UTF-8")) {
+        try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
             ps.append(code2);
         }
         return file;
@@ -146,15 +150,62 @@ public class Main {
         }
     }
 
+    static Path writePrivateSynonyms(Connection con, Path baseDir,String encoding)
+            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+        Path synPath = baseDir.resolve("private-synonyms.sql");
+        try (PrintStream ps = new PrintStream(synPath.toFile(), encoding)) {
+            try (Statement stm = con.createStatement();
+                    ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
+                while (rs.next()) {
+                    String sname = rs.getString(1);
+                    String schema = rs.getString(2);
+                    String obj = rs.getString(3);
+                    String s = "create or replace synonym "
+                            + Helper.maybeOracleQuote(sname) + " for "
+                            + Helper.maybeOracleQuote(schema) + "."
+                            + Helper.maybeOracleQuote(obj);
+                    String li = rs.getString(4);
+                    if (li != null) {
+                        s = s + "@" + li;
+                    }
+                    s = s + ";";
+                    ps.println(s);
+                }
+            }
+            return synPath;
+        }
+    }
+
+    static Path writeSequences(Connection con, Path baseDir,String encoding)
+            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
+        Path synPath = baseDir.resolve("sequences.sql");
+        try (PrintStream ps = new PrintStream(synPath.toFile(), encoding)) {
+            try (Statement stm = con.createStatement();
+                    ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
+                while (rs.next()) {
+                    String s = "create sequence " + Helper.maybeOracleQuote(rs.getString(1));
+                    String incby = rs.getString(2);
+                    if (!incby.equals("1")) {
+                        s = s + " increment by " + incby;
+                    }
+                    s = s + ";";
+                    ps.println(s);
+                }
+            }
+            return synPath;
+        }
+    }
+
     public static void main(String[] args) throws SQLException, IOException, ParseException {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (Exception e) {
-            throw new RuntimeException("can not find oracle driver");
+            abort("can not initialize Oracle JDBC\n" + e.toString());
         }
 
         if (args.length < 1) {
-            abort("Expecting at least one Argument: the name of the property file");
+            abort("Expecting at least one Argument: the name of the property file,\n"
+                    + "the optional second argument is a connection description");
         }
 
         String connectionDesc = null;
@@ -162,7 +213,6 @@ public class Main {
             connectionDesc = args[1];
         }
         java.util.Properties props = new java.util.Properties();
-
         {
             Path p = Paths.get(args[0]);
             if (Files.isReadable(p)) {
@@ -170,18 +220,27 @@ public class Main {
                     props.load(fi);
                 }
             } else {
-                abort("can no read property file: " + p);
+                abort("cannot read property file: " + p);
             }
         }
-
-        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
-        boolean usegit = Helper.getPropBool(props, "usegit", false);
-        prepareBaseDir(baseDir, usegit);
         // we have the configuration properties and the diretory they are in
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
         }
-        Connection con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
+        Connection con = null;
+        try {
+            con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
+        } catch (SQLException e) {
+            abort("cannot get connection described by " + connectionDesc
+                    + "\n" + e.toString());
+        }
+
+        String encoding = Helper.getProp(props, "encoding", "UTF-8");
+        
+        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
+        boolean usegit = Helper.getPropBool(props, "usegit", false);
+        prepareBaseDir(baseDir, usegit);
+
         // now get the objects
         ArrayList<DBObject> objects = getDBObjects(con, props);
         ArrayList<Path> allobjects = new ArrayList<>();
@@ -230,17 +289,17 @@ public class Main {
         }
         boolean private_synonyms = Helper.getPropBool(props, "private-synonyms", true);
         if (private_synonyms) {
-            Path p = writePrivateSynonyms(con, baseDir);
+            Path p = writePrivateSynonyms(con, baseDir, encoding);
             allobjects.add(0, p);
         }
         boolean sequences = Helper.getPropBool(props, "sequences", true);
         if (sequences) {
-            Path p = writeSequences(con, baseDir);
+            Path p = writeSequences(con, baseDir, encoding);
             allobjects.add(0, p);
         }
-
+        
         Path allObjectsPath = baseDir.resolve("all-objects.sql");
-        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), "UTF-8")) {
+        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(),encoding)) {
             for (Path p : allobjects) {
                 Path rel = baseDir.relativize(p);
                 ps.append("@@").append(rel.toString());
@@ -251,51 +310,4 @@ public class Main {
             GitHelper.AddVersion(baseDir.toFile(), "das war es");
         }
     }
-
-    static Path writePrivateSynonyms(Connection con, Path baseDir)
-            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
-        Path synPath = baseDir.resolve("private-synonyms.sql");
-        try (PrintStream ps = new PrintStream(synPath.toFile(), "UTF-8")) {
-            try (Statement stm = con.createStatement();
-                    ResultSet rs = stm.executeQuery("select synonym_name,table_owner,table_name,db_link from user_synonyms order by synonym_name")) {
-                while (rs.next()) {
-                    String sname = rs.getString(1);
-                    String schema = rs.getString(2);
-                    String obj = rs.getString(3);
-                    String s = "create or replace synonym "
-                            + Helper.maybeOracleQuote(sname) + " for "
-                            + Helper.maybeOracleQuote(schema) + "."
-                            + Helper.maybeOracleQuote(obj);
-                    String li = rs.getString(4);
-                    if (li != null) {
-                        s = s + "@" + li;
-                    }
-                    s = s + ";";
-                    ps.println(s);
-                }
-            }
-            return synPath;
-        }
-    }
-
-    static Path writeSequences(Connection con, Path baseDir)
-            throws FileNotFoundException, UnsupportedEncodingException, SQLException {
-        Path synPath = baseDir.resolve("sequences.sql");
-        try (PrintStream ps = new PrintStream(synPath.toFile(), "UTF-8")) {
-            try (Statement stm = con.createStatement();
-                    ResultSet rs = stm.executeQuery("select sequence_name,increment_by from user_sequences order by sequence_name")) {
-                while (rs.next()) {
-                    String s = "create sequence " + Helper.maybeOracleQuote(rs.getString(1));
-                    String incby = rs.getString(2);
-                    if (!incby.equals("1")) {
-                        s = s + " increment by " + incby;
-                    }
-                    s = s + ";";
-                    ps.println(s);
-                }
-            }
-            return synPath;
-        }
-    }
-
 }

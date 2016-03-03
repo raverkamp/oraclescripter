@@ -81,7 +81,7 @@ public class SourceCodeGetter {
         }
     }
 
-    private static final String default_ref_clause = "REFERENCING NEW AS NEW OLD AS OLD";
+    private static final String default_ref_clause = "referencing new as new and old as old";
 
     // we search for "user." case insensitive or "\"user\"."  case sensitive
     // if they are found we remove them 
@@ -160,8 +160,8 @@ public class SourceCodeGetter {
 
                 rs.close();
                 s.close();
-                String res = "CREATE OR REPLACE TRIGGER " + desc2
-                        + ((when_clause == null) ? "" : " WHEN (" + when_clause + ")\n")
+                String res = "create or replace trigger " + desc2
+                        + ((when_clause == null) ? "" : " when (" + when_clause + ")\n")
                         + trigger_body;
                 return res;
             } else {
