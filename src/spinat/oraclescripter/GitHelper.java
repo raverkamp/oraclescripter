@@ -33,12 +33,15 @@ public class GitHelper {
             rb.addCeilingDirectory(f);
             rb.setMustExist(true);
             rb.findGitDir(f);
+            if (rb.getGitDir() == null) {
+                 throw new RuntimeException("no repo found at: " + dir);
+            }
             Repository r = rb.build();
             Git g = new Git(r);
             StatusCommand stc = g.status();
             Status st = stc.call();
         } catch (GitAPIException ex) {
-            throw new RuntimeException("no repo found");
+            throw new RuntimeException(ex);
         }
     }
 

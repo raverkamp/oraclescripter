@@ -212,19 +212,46 @@ public class Helper {
         }
     }
 
-    static void deleteThing(Path p) {
-        try {
-            if (Files.isDirectory(p)) {
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
-                    for (Path entry : stream) {
-                        deleteThing(entry);
-                    }
-                }
+    static ArrayList<Path> dirList(Path p) throws IOException {
+        ArrayList<Path> l = new ArrayList<>();
+        // first fetch the directory contents and then delete the contents
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
+            for (Path entry : stream) {
+                l.add(entry);
             }
-            Files.delete(p);
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
         }
+        return l;
+    }
+    
+    static boolean deleteFile(Path p) {
+        try {
+            Files.delete(p);
+            return true;
+        } catch (IOException ex) {
+            System.err.printf("can not delete file " + p + " " + ex.toString() + "\n");
+            return false;
+        }
+    }
+
+
+    static boolean deleteThing(Path p) throws IOException {
+
+        if (Files.isDirectory(p)) {
+            boolean a = true;
+            for (Path entry : dirList(p)) {
+                boolean b = deleteThing(entry);
+                a = b && a;
+            }
+            if (a) {
+                return deleteFile(p);
+
+            } else {
+                return false;
+            }
+        } else {
+            return deleteFile(p);
+        }
+
     }
 
     static void deleteDirectoryContents(Path p) {
@@ -232,24 +259,38 @@ public class Helper {
             if (!p.isAbsolute()) {
                 throw new RuntimeException("not a absolute path");
             }
-
             if (!Files.isDirectory(p)) {
                 throw new RuntimeException("this is not a directory: " + p);
             }
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(p)) {
-                for (Path entry : stream) {
+            // try to delete the dicrectory contents
+            // we do three runs and sleep 3 sec between
+            // WHY: I had problems on Windows, the first script attempt failed
+            //   because a file could not be deleted, but the second succeeded
+            for (int i = 0; i < 3; i++) {
+                boolean a = true;
+                for (Path entry : dirList(p)) {
                     String s = entry.getFileName().toString();
                     if (!(s.equalsIgnoreCase("git")
                             || s.equalsIgnoreCase("svn")
                             || s.equalsIgnoreCase("git")
                             || (s.length() > 1 && !Character.isAlphabetic(s.charAt(0))
                             && !Character.isDigit(s.charAt(0))))) {
-                        deleteThing(entry);
+                        // the order is important: we always want to execute deleteThing!
+                        a = deleteThing(entry) && a;
                     }
                 }
+                if (a) {
+                    return;
+                } else {
+                    Thread.sleep(3000);
+                }
             }
+            throw new RuntimeException("can not delete directory contents");
+
         } catch (IOException e) {
             throw new RuntimeException(e);
+        } catch (InterruptedException ex) {
+            throw new RuntimeException(ex);
         }
     }
 
