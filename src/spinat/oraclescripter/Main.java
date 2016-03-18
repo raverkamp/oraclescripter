@@ -14,6 +14,7 @@ import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Map;
+import oracle.jdbc.OracleConnection;
 
 public class Main {
 
@@ -155,7 +156,7 @@ public class Main {
         }
     }
 
-    static Path writePrivateSynonyms(Connection con, Path baseDir, String encoding)
+    static Path writePrivateSynonyms(OracleConnection con, Path baseDir, String encoding)
             throws IOException, SQLException {
         Path synPath = baseDir.resolve("private-synonyms.sql");
         StringBuilder b = new StringBuilder();
@@ -234,7 +235,7 @@ public class Main {
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
         }
-        Connection con = null;
+        OracleConnection con = null;
         try {
             con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
         } catch (SQLException e) {
@@ -252,45 +253,45 @@ public class Main {
         ArrayList<DBObject> objects = getDBObjects(con, props);
         ArrayList<Path> allobjects = new ArrayList<>();
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
-        SourceCodeGetter scg = new SourceCodeGetter();
+        SourceCodeGetter scg = new SourceCodeGetter(con);
         for (DBObject dbo : objects) {
             System.out.println("doing " + dbo.type + " " + dbo.name);
             if (dbo.type.equals("PACKAGE")) {
                 if (combine_spec_body) {
-                    String s = scg.getCode(con, "PACKAGE", dbo.name);
-                    String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
+                    String s = scg.getCode("PACKAGE", dbo.name);
+                    String b = scg.getCode("PACKAGE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s) + appendSlash(b)));
                     } else {
                         allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s)));
                     }
                 } else {
-                    String s = scg.getCode(con, "PACKAGE", dbo.name);
+                    String s = scg.getCode("PACKAGE", dbo.name);
                     allobjects.add(saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, appendSlash(s)));
-                    String b = scg.getCode(con, "PACKAGE BODY", dbo.name);
+                    String b = scg.getCode("PACKAGE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, appendSlash(b)));
                     }
                 }
             } else if (dbo.type.equals("TYPE")) {
                 if (combine_spec_body) {
-                    String s = scg.getCode(con, "TYPE", dbo.name);
-                    String b = scg.getCode(con, "TYPE BODY", dbo.name);
+                    String s = scg.getCode("TYPE", dbo.name);
+                    String b = scg.getCode("TYPE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s) + appendSlash(b)));
                     } else {
                         allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s)));
                     }
                 } else {
-                    String s = scg.getCode(con, "TYPE", dbo.name);
+                    String s = scg.getCode("TYPE", dbo.name);
                     allobjects.add(saveObject(baseDir, props, "TYPE SPEC", dbo.name, appendSlash(s)));
-                    String b = scg.getCode(con, "TYPE BODY", dbo.name);
+                    String b = scg.getCode("TYPE BODY", dbo.name);
                     if (b != null) {
                         allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, appendSlash(b)));
                     }
                 }
             } else {
-                String s = scg.getCode(con, dbo.type, dbo.name);
+                String s = scg.getCode(dbo.type, dbo.name);
                 allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, appendSlash(s)));
             }
         }

@@ -2,32 +2,39 @@ package spinat.oraclescripter;
 
 import java.util.*;
 import java.sql.*;
+import oracle.jdbc.OracleConnection;
 
 public class SourceCodeGetter {
 
     private static final String[] source_stuff = new String[]{
         "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
 
-    public String getCode(Connection c, String objectType, String objectName) {
+    private final OracleConnection con;
+    
+    public SourceCodeGetter(OracleConnection c) {
+        this.con = c;
+    }
+    
+    public String getCode(String objectType, String objectName) {
         if (Helper.arrayIndexOf(source_stuff, objectType) >= 0) {
-            return getUserSourceCode(c, objectName, objectType);
+            return getUserSourceCode(objectName, objectType);
         }
         if ("VIEW".equals(objectType)) {
-            return getViewSourceCode(c, objectName);
+            return getViewSourceCode(objectName);
         }
         if ("TRIGGER".equals(objectType)) {
-            return getTriggerSourceCode(c, objectName);
+            return getTriggerSourceCode(objectName);
         }
         throw new RuntimeException("unknown kind of object " + objectType);
     }
 
-    private String getUserSourceCode(Connection c, String objectName, String objectType) {
+    private String getUserSourceCode(String objectName, String objectType) {
         try {
             String stmtext
                     = "select text from user_source \n"
                     + " where name=? and type=? order by line";
 
-            try (PreparedStatement stm = c.prepareStatement(stmtext)) {
+            try (PreparedStatement stm = this.con.prepareStatement(stmtext)) {
                 stm.setString(1, objectName);
                 stm.setString(2, objectType);
                 StringBuilder b = new StringBuilder();
@@ -47,7 +54,7 @@ public class SourceCodeGetter {
         }
     }
 
-    private String getViewSourceCode(Connection con, String view) {
+    private String getViewSourceCode(String view) {
         try {
             String stmtext = "select text from user_views where view_name = ?";
             final String code;
@@ -113,7 +120,7 @@ public class SourceCodeGetter {
         }
     }
 
-    private String getTriggerSourceCode(Connection con, String trigger) {
+    private String getTriggerSourceCode(String trigger) {
         try {
             PreparedStatement s = con.prepareStatement("select "
                     + "TRIGGER_NAME,\n"
