@@ -3,6 +3,7 @@ package spinat.oraclescripter;
 import java.util.*;
 import java.sql.*;
 import oracle.jdbc.OracleConnection;
+import oracle.jdbc.OraclePreparedStatement;
 
 public class SourceCodeGetter {
 
@@ -10,11 +11,60 @@ public class SourceCodeGetter {
         "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
 
     private final OracleConnection con;
-    
+
     public SourceCodeGetter(OracleConnection c) {
         this.con = c;
     }
-    
+
+    private HashMap<String, String> usersources = new HashMap<>();
+
+    public void load(ArrayList<DBObject> objects) throws SQLException {
+        this.usersources = new HashMap<>();
+        ArrayList<String> l = new ArrayList<>();
+        for (DBObject o : objects) {
+            if (o.type.equals("VIEW") || o.type.equals("TRIGGER")) {
+                continue;
+            }
+            if (o.type.equals("PACKAGE")) {
+                l.add("PACKAGE BODY," + o.name);
+            }
+            if (o.type.equals("TYPE")) {
+                l.add("TYPE BODY," + o.name);
+            }
+            l.add(o.type + "," + o.name);
+        }
+        String[] arg = l.toArray(new String[0]);
+        String sql = "select name,type,line,text from user_source \n"
+                + " where (type,name) in "
+                + "  (select substr(column_value,1,instr(column_value,',')-1),"
+                + "         substr(column_value,instr(column_value,',')+1)"
+                + " from table(?))"
+                + " order by name,type,line,text";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setARRAY(1, a);
+            String key = null;
+            StringBuilder b = new StringBuilder();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String name = rs.getString(1);
+                    String type = rs.getString(2);
+                    String txt = rs.getString(4);
+                    String k2 = type + "," + name;
+                    if (!k2.equals(key)) {
+                        if (key != null) {
+                            this.usersources.put(key, b.toString());
+                        }
+                        b = new StringBuilder();
+                        key = k2;
+                    }
+                    b.append(txt);
+                }
+                this.usersources.put(key, b.toString());
+            }
+        }
+    }
+
     public String getCode(String objectType, String objectName) {
         if (Helper.arrayIndexOf(source_stuff, objectType) >= 0) {
             return getUserSourceCode(objectName, objectType);
@@ -29,29 +79,13 @@ public class SourceCodeGetter {
     }
 
     private String getUserSourceCode(String objectName, String objectType) {
-        try {
-            String stmtext
-                    = "select text from user_source \n"
-                    + " where name=? and type=? order by line";
+        String key = objectType + "," + objectName;
+        String s = this.usersources.getOrDefault(key, null);
 
-            try (PreparedStatement stm = this.con.prepareStatement(stmtext)) {
-                stm.setString(1, objectName);
-                stm.setString(2, objectType);
-                StringBuilder b = new StringBuilder();
-                try (ResultSet rs = stm.executeQuery()) {
-                    while (rs.next()) {
-                        b.append(rs.getString(1));
-                    }
-                    String res = b.toString();
-                    if (res == null || res.trim().isEmpty()) {
-                        return null;
-                    }
-                    return "create or replace " + res;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        if (s == null || s.trim().isEmpty()) {
+            return null;
         }
+        return "create or replace " + s;
     }
 
     private String getViewSourceCode(String view) {

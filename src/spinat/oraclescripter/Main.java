@@ -254,6 +254,7 @@ public class Main {
         ArrayList<Path> allobjects = new ArrayList<>();
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
         SourceCodeGetter scg = new SourceCodeGetter(con);
+        scg.load(objects);
         for (DBObject dbo : objects) {
             System.out.println("doing " + dbo.type + " " + dbo.name);
             if (dbo.type.equals("PACKAGE")) {
