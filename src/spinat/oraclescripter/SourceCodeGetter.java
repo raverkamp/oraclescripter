@@ -17,12 +17,19 @@ public class SourceCodeGetter {
     }
 
     private HashMap<String, String> usersources = new HashMap<>();
+    private HashMap<String, String> view_sources = new HashMap<>();
+    private HashMap<String, String> view_tab_columns = new HashMap<>();
 
     public void load(ArrayList<DBObject> objects) throws SQLException {
         this.usersources = new HashMap<>();
         ArrayList<String> l = new ArrayList<>();
+        ArrayList<String> views = new ArrayList<>();
         for (DBObject o : objects) {
-            if (o.type.equals("VIEW") || o.type.equals("TRIGGER")) {
+            if (o.type.equals("VIEW")) {
+                views.add(o.name);
+                continue;
+            }
+            if (o.type.equals("TRIGGER")) {
                 continue;
             }
             if (o.type.equals("PACKAGE")) {
@@ -33,7 +40,7 @@ public class SourceCodeGetter {
             }
             l.add(o.type + "," + o.name);
         }
-        String[] arg = l.toArray(new String[0]);
+
         String sql = "select name,type,line,text from user_source \n"
                 + " where (type,name) in "
                 + "  (select substr(column_value,1,instr(column_value,',')-1),"
@@ -41,6 +48,7 @@ public class SourceCodeGetter {
                 + " from table(?))"
                 + " order by name,type,line,text";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            String[] arg = l.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
             String key = null;
@@ -61,6 +69,44 @@ public class SourceCodeGetter {
                     b.append(txt);
                 }
                 this.usersources.put(key, b.toString());
+            }
+        }
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select view_name,text from user_views where view_name in (select column_value from table(?))")) {
+            String[] arg = views.toArray(new String[0]);
+            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setARRAY(1, a);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String name = rs.getString(1);
+                    String txt = rs.getString(2);
+                    this.view_sources.put(name, txt);
+                }
+            }
+        }
+
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select table_name, column_name from user_tab_columns "
+                + "where table_name in (select column_value from table(?)) order by table_name,column_id")) {
+            String[] arg = views.toArray(new String[0]);
+            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setARRAY(1, a);
+            String old_table_name = null;
+            StringBuilder b = new StringBuilder();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String table_name = rs.getString(1);
+                    String column_name = rs.getString(2);
+                    if (old_table_name != null && !old_table_name.equals(table_name)) {
+                        this.view_tab_columns.put(old_table_name, b.toString().substring(2));
+                    }
+                    if (!table_name.equals(old_table_name)) {
+                        b = new StringBuilder();
+                        old_table_name = table_name;
+                    }
+                    b.append(", ").append(Helper.maybeOracleQuote(column_name));
+                }
+                this.view_tab_columns.put(old_table_name, b.toString().substring(2));
             }
         }
     }
@@ -89,37 +135,11 @@ public class SourceCodeGetter {
     }
 
     private String getViewSourceCode(String view) {
-        try {
-            String stmtext = "select text from user_views where view_name = ?";
-            final String code;
-            try (PreparedStatement s = con.prepareStatement(stmtext)) {
-                s.setString(1, view);
-                try (ResultSet rs = s.executeQuery()) {
-                    if (rs.next()) {
-                        code = rs.getString(1);
-                    } else {
-                        throw new RuntimeException("view source found");
-                    }
-                }
-            }
-            String cols;
-            try (PreparedStatement s2 = con.prepareStatement("select column_name from user_tab_columns "
-                    + "where table_name = ? order by column_id")) {
-                s2.setString(1, view);
-                try (ResultSet rs2 = s2.executeQuery()) {
-                    cols = "";
-                    while (rs2.next()) {
-                        String column = rs2.getString(1);
-                        cols = cols + ", " + Helper.maybeOracleQuote(column);
-                    }
-                }
-            }
-            return "create or replace force view " + Helper.maybeOracleQuote(view)
-                    + " (" + cols.substring(2, cols.length()) + ") as \n"
-                    + code;
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+
+        String code = this.view_sources.get(view);
+        return "create or replace force view " + Helper.maybeOracleQuote(view)
+                + " (" + view_tab_columns.get(view) + ") as \n"
+                + code;
     }
 
     private static final String default_ref_clause = "referencing new as new and old as old";
