@@ -21,6 +21,7 @@ installation it is "localhost:1521:xe".
 The properties file contains further parameters which describe the scripting task.
 
 The properties are:
+
 directory
   the directory to where to script to
 

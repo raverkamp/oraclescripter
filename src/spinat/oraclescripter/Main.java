@@ -62,17 +62,18 @@ public class Main {
         }
     }
 
-    private static void writeTextFile(Path file, String txt, String encoding,
-            boolean windowsLineEnd) throws IOException {
+    private static void writeTextFile(Path file, String txt, String encoding) throws IOException {
         if (Files.exists(file)) {
             throw new RuntimeException("file " + file + " already exists");
         }
-        String s;
-        if (windowsLineEnd) {
-            s = Helper.stringWindowsLineEnd(txt);
-        } else {
-            s = Helper.stringUnixLineEnd(txt);
+        String s = Helper.stringUnixLineEnd(txt);
+        if (encoding.equals("german-ascii")) {
+            encoding = "ascii";
+            s = s.replace("\u00C4","Ae").replace("\u00D6","Oe").replace("\u00DC","Ue")
+                    .replace("\u00E4","ae").replace("\u00F6","oe").replace("\u00FC","ue")
+                    .replace("\u00DF","ss");
         }
+        
         try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
             ps.append(s);
         }
@@ -129,7 +130,7 @@ public class Main {
         }
 
         Path file = baseDir.resolve(fileRelative);
-        writeTextFile(file, src, encoding, false);
+        writeTextFile(file, src, encoding);
         return file;
     }
 
@@ -179,7 +180,7 @@ public class Main {
                 b.append("\n");
             }
         }
-        writeTextFile(synPath, b.toString(), encoding, false);
+        writeTextFile(synPath, b.toString(), encoding);
         return synPath;
     }
 
@@ -199,7 +200,7 @@ public class Main {
                 b.append(s);
                 b.append("\n");
             }
-            writeTextFile(synPath, b.toString(), encoding, false);
+            writeTextFile(synPath, b.toString(), encoding);
             return synPath;
         }
     }
@@ -308,13 +309,15 @@ public class Main {
         }
 
         Path allObjectsPath = baseDir.resolve("all-objects.sql");
-        try (PrintStream ps = new PrintStream(allObjectsPath.toFile(), encoding)) {
-            for (Path p : allobjects) {
-                Path rel = baseDir.relativize(p);
-                ps.append("@@").append(rel.toString());
-                ps.println();
-            }
+        StringBuilder b = new StringBuilder();
+
+        for (Path p : allobjects) {
+            Path rel = baseDir.relativize(p);
+            b.append("@@").append(rel.toString());
+            b.append("\n");
         }
+
+        writeTextFile(allObjectsPath, b.toString(), encoding);
         if (usegit) {
             GitHelper.AddVersion(baseDir.toFile(), "das war es");
         }
