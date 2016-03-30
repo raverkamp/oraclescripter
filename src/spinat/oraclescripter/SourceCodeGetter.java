@@ -48,6 +48,7 @@ public class SourceCodeGetter {
                 + " from table(?))"
                 + " order by name,type,line,text";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            ps.setFetchSize(10000);
             String[] arg = l.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
@@ -73,6 +74,7 @@ public class SourceCodeGetter {
         }
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
                 "select view_name,text from user_views where view_name in (select column_value from table(?))")) {
+            ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
@@ -88,6 +90,7 @@ public class SourceCodeGetter {
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
                 "select table_name, column_name from user_tab_columns "
                 + "where table_name in (select column_value from table(?)) order by table_name,column_id")) {
+            ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
@@ -141,8 +144,6 @@ public class SourceCodeGetter {
                 + " (" + view_tab_columns.get(view) + ") as \n"
                 + code;
     }
-
-    private static final String default_ref_clause = "referencing new as new and old as old";
 
     // we search for "user." case insensitive or "\"user\"."  case sensitive
     // if they are found we remove them 
