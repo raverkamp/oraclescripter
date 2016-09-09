@@ -6,6 +6,11 @@ function p2 return number;
 
 -- a comment
 
+type rec is record (a integer,b varchar2(200));
+type tab is table of rec;
+
+function p3 return tab pipelined;
+
 end;
 /
 
@@ -19,6 +24,11 @@ end;
 function p2 return number is
 begin
   return null;
+end;
+
+function p3 return tab pipelined is
+begin
+  null;
 end;
 
 end;

@@ -48,7 +48,8 @@ public class Main {
                 + "from user_objects \n"
                 + "where object_type in ('PACKAGE','PROCEDURE',\n"
                 + "'FUNCTION','VIEW','TRIGGER','TYPE')\n"
-                + " and " + where_clause
+                + " and ( object_type <>'TYPE' or object_name in (select type_name from user_types)) "
+                + " and (" + where_clause + " ) "
                 // views come last, this is important
                 + " order by object_type,object_name ");
                 ResultSet rs = stm.executeQuery()) {
@@ -84,7 +85,7 @@ public class Main {
                 "package_body", "pkb",
                 "package_spec", "pks",
                 "package", "pkg",
-                "type_body", "tbd",
+                "type_body", "tpb",
                 "type_spec", "tps",
                 "type", "typ",
                 "procedure", "prc",
@@ -144,7 +145,9 @@ public class Main {
             if (!Files.isDirectory(p)) {
                 throw new RuntimeException("this is not a directory: " + p);
             }
-            GitHelper.checkForRepoInDir(p.toFile());
+            if (doGit) {
+              GitHelper.checkForRepoInDir(p.toFile());
+            }
         }
         Helper.deleteDirectoryContents(p);
     }
