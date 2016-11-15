@@ -90,9 +90,12 @@ public abstract class OraConnectionDesc {
      * @throws ParseException
      */
     public static OraConnectionDesc fromString(String conStr) throws ParseException {
+        String errm = "expecting a conenction string in the form \"user[/pwd]@tnsname\""
+                    + " or \"user[/pwd]@host:port:service\""
+                    + " or \"user[/pwd]@//host:port/service\"";
         final int p = conStr.indexOf("@");
         if (p <= 0) {
-            throw new ParseException("expecting a conenction string in the form \"user[/pwd]@tnsname\" or \"user[/pwd]@host:port:service\"", 0);
+            throw new ParseException(errm, 0);
         }
         final String userPart = conStr.substring(0, p);
         final String rest = conStr.substring(p + 1);
@@ -107,21 +110,42 @@ public abstract class OraConnectionDesc {
             pwd = userPart.substring(p2 + 1);
         }
 
-        final int pcolon1 = rest.indexOf(":");
-        if (pcolon1 < 0) {
-            return new OciConnectionDesc(user, pwd, rest);
-        } else {
-            final String[] a = rest.split(":");
-            if (a.length != 3) {
-                throw new ParseException("expecting a connection string in the form \"user/pwd@host:port:service\"", 0);
+        if (rest.startsWith("//")) {
+            // new format scott/tiger@//host:port/db
+            final String[] a = rest.substring(2).split(":");
+            if (a.length != 2) {
+                throw new ParseException(errm, 0);
             }
-            final int x;
+            String host = a[0];
+            String[] b = a[1].split("/");
+            if (b.length != 2) {
+                throw new ParseException(errm, 0);
+            }
+            final int port;
             try {
-                x = Integer.parseInt(a[1]);
+                port = Integer.parseInt(b[0]);
             } catch (java.lang.NumberFormatException ex) {
                 throw new ParseException("port must be an integer >0, not: " + a[1], 0);
             }
-            return new ThinConnectionDesc(user, pwd, a[0], x, a[2]);
+            String db = b[1];
+            return new ThinConnectionDesc(user, pwd, host, port, db);
+        } else {
+            final int pcolon1 = rest.indexOf(":");
+            if (pcolon1 < 0) {
+                return new OciConnectionDesc(user, pwd, rest);
+            } else {
+                final String[] a = rest.split(":");
+                if (a.length != 3) {
+                    throw new ParseException(errm, 0);
+                }
+                final int x;
+                try {
+                    x = Integer.parseInt(a[1]);
+                } catch (java.lang.NumberFormatException ex) {
+                    throw new ParseException("port must be an integer >0, not: " + a[1], 0);
+                }
+                return new ThinConnectionDesc(user, pwd, a[0], x, a[2]);
+            }
         }
     }
 }

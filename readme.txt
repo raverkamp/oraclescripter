@@ -15,8 +15,11 @@ java -jar oraclescripter/main.jar propfilename [connectiondesc]
 
 where propfilename is the name of a Java properties file, connectiondesc
 is a connection identifier.
-It has to be of the form host:port:service,so for your typical Oracle XE 
-installation it is "localhost:1521:xe".
+
+It has to be of the form user/password@host:port:service,so for your typical Oracle XE 
+installation it is "scott/tiger@localhost:1521:xe".
+
+If the password is omitted it has to be entered on the console.
 
 The properties file contains further parameters which describe the scripting task.
 

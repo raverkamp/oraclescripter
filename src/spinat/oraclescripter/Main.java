@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Map;
 import oracle.jdbc.OracleConnection;
 
@@ -239,9 +240,19 @@ public class Main {
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
         }
+        
+        spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc);
+        if (!cd.hasPwd()) {
+            if (System.console() == null) {
+                abort("No password was given and there is no input console to enter it.");
+            }
+            char[] pw = System.console().readPassword("Password for " + cd.display() +":");
+            cd.setPwd(new String(pw));
+            
+        }
         OracleConnection con = null;
         try {
-            con = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc).getConnection();
+            con = cd.getConnection();
         } catch (SQLException e) {
             abort("cannot get connection described by " + connectionDesc
                     + "\n" + e.toString());
