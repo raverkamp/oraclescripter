@@ -13,7 +13,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Map;
 import oracle.jdbc.OracleConnection;
 
@@ -236,6 +235,13 @@ public class Main {
                 abort("cannot read property file: " + p);
             }
         }
+        String encoding = Helper.getProp(props, "encoding", "UTF-8");
+
+        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
+        boolean usegit = Helper.getPropBool(props, "usegit", false);
+        prepareBaseDir(baseDir, usegit);
+
+        
         // we have the configuration properties and the diretory they are in
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
@@ -258,12 +264,7 @@ public class Main {
                     + "\n" + e.toString());
         }
 
-        String encoding = Helper.getProp(props, "encoding", "UTF-8");
-
-        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
-        boolean usegit = Helper.getPropBool(props, "usegit", false);
-        prepareBaseDir(baseDir, usegit);
-
+        
         exportToDir(baseDir, con, props, encoding);
 
         if (usegit) {
