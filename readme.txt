@@ -25,6 +25,14 @@ The properties file contains further parameters which describe the scripting tas
 
 The properties are:
 
+connection
+   connectiondesc, must be given if no conenction descriptor on commandline
+
+schemas
+  optional comma separated list of schema names, for each schema name <schema> 
+  there must be an entry <schema>.connection
+  each schema will get its own directory the name is <schema>
+
 directory
   the directory to where to script to
 

@@ -208,6 +208,26 @@ public class Main {
         }
     }
 
+    static OracleConnection getConnection(String desc) throws ParseException {
+        spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(desc);
+        if (!cd.hasPwd()) {
+            if (System.console() == null) {
+                abort("No password was given and there is no input console to enter it.");
+            }
+            char[] pw = System.console().readPassword("Password for " + cd.display() + ":");
+            cd.setPwd(new String(pw));
+        }
+        OracleConnection con = null;
+        try {
+            return cd.getConnection();
+        } catch (SQLException e) {
+            abort("cannot get connection described by " + desc
+                    + "\n" + e.toString());
+            // abort aborts, so never reached
+            throw new Error("");
+        }
+    }
+
     public static void main(String[] args) throws SQLException, IOException, ParseException {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
@@ -241,33 +261,35 @@ public class Main {
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
 
-        
-        // we have the configuration properties and the diretory they are in
-        if (connectionDesc == null) {
-            connectionDesc = Helper.getProp(props, "connection");
-        }
-
-        spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc);
-        if (!cd.hasPwd()) {
-            if (System.console() == null) {
-                abort("No password was given and there is no input console to enter it.");
+        String schemas = Helper.getProp(props, "schemas", "");
+        if (!schemas.equals("")) {
+            if (connectionDesc != null) {
+                abort("if multiple schemas connection must not be cammand line parameter");
             }
-            char[] pw = System.console().readPassword("Password for " + cd.display() + ":");
-            cd.setPwd(new String(pw));
+            String[] schema_list = schemas.split(",");
+            for (int i = 0; i < schema_list.length; i++) {
+                String schema = schema_list[i].trim();
+                String desc = Helper.getProp(props, schema + ".connection");
+                OracleConnection con = getConnection(desc);
+                Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                Path pd = Files.createDirectories(schemaBaseDir);
+                System.out.println("--------" + schema + "--------");
+                exportToDir(schemaBaseDir, con, props, encoding);
+                con.close();
+            }
 
+        } else {
+
+            // we have the configuration properties and the diretory they are in
+            if (connectionDesc == null) {
+                connectionDesc = Helper.getProp(props, "connection");
+            }
+            OracleConnection con = getConnection(connectionDesc);
+            exportToDir(baseDir, con, props, encoding);
+            con.close();
         }
-        OracleConnection con = null;
-        try {
-            con = cd.getConnection();
-        } catch (SQLException e) {
-            abort("cannot get connection described by " + connectionDesc
-                    + "\n" + e.toString());
-        }
-
-        
-        exportToDir(baseDir, con, props, encoding);
-
         if (usegit) {
+            System.out.println("-------------------");
             GitHelper.AddVersion(baseDir.toFile(), "das war es");
         }
     }
