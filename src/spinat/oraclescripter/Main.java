@@ -71,11 +71,11 @@ public class Main {
         String s = Helper.stringUnixLineEnd(txt);
         if (encoding.equals("german-ascii")) {
             encoding = "ascii";
-            s = s.replace("\u00C4","Ae").replace("\u00D6","Oe").replace("\u00DC","Ue")
-                    .replace("\u00E4","ae").replace("\u00F6","oe").replace("\u00FC","ue")
-                    .replace("\u00DF","ss");
+            s = s.replace("\u00C4", "Ae").replace("\u00D6", "Oe").replace("\u00DC", "Ue")
+                    .replace("\u00E4", "ae").replace("\u00F6", "oe").replace("\u00FC", "ue")
+                    .replace("\u00DF", "ss");
         }
-        
+
         try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
             ps.append(s);
         }
@@ -147,7 +147,7 @@ public class Main {
                 throw new RuntimeException("this is not a directory: " + p);
             }
             if (doGit) {
-              GitHelper.checkForRepoInDir(p.toFile());
+                GitHelper.checkForRepoInDir(p.toFile());
             }
         }
         Helper.deleteDirectoryContents(p);
@@ -240,15 +240,15 @@ public class Main {
         if (connectionDesc == null) {
             connectionDesc = Helper.getProp(props, "connection");
         }
-        
+
         spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(connectionDesc);
         if (!cd.hasPwd()) {
             if (System.console() == null) {
                 abort("No password was given and there is no input console to enter it.");
             }
-            char[] pw = System.console().readPassword("Password for " + cd.display() +":");
+            char[] pw = System.console().readPassword("Password for " + cd.display() + ":");
             cd.setPwd(new String(pw));
-            
+
         }
         OracleConnection con = null;
         try {
@@ -264,6 +264,18 @@ public class Main {
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
 
+        exportToDir(baseDir, con, props, encoding);
+
+        if (usegit) {
+            GitHelper.AddVersion(baseDir.toFile(), "das war es");
+        }
+    }
+
+    static void exportToDir(
+            Path baseDir,
+            OracleConnection con,
+            java.util.Properties props,
+            String encoding) throws SQLException, IOException {
         // now get the objects
         ArrayList<DBObject> objects = getDBObjects(con, props);
         ArrayList<Path> allobjects = new ArrayList<>();
@@ -332,8 +344,6 @@ public class Main {
         }
 
         writeTextFile(allObjectsPath, b.toString(), encoding);
-        if (usegit) {
-            GitHelper.AddVersion(baseDir.toFile(), "das war es");
-        }
     }
+
 }
