@@ -109,7 +109,9 @@ public class SourceCodeGetter {
                     }
                     b.append(", ").append(Helper.maybeOracleQuote(column_name));
                 }
-                this.view_tab_columns.put(old_table_name, b.toString().substring(2));
+                if (b.length() >= 2 && old_table_name != null) {
+                    this.view_tab_columns.put(old_table_name, b.toString().substring(2));
+                }
             }
         }
     }
