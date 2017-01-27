@@ -267,15 +267,21 @@ public class Main {
                 abort("if multiple schemas connection must not be cammand line parameter");
             }
             String[] schema_list = schemas.split(",");
+            OracleConnection[] connection_list = new OracleConnection[schema_list.length];
+            
             for (int i = 0; i < schema_list.length; i++) {
                 String schema = schema_list[i].trim();
                 String desc = Helper.getProp(props, schema + ".connection");
                 OracleConnection con = getConnection(desc);
+                connection_list[i] = con;
+            }
+            for (int i = 0; i < schema_list.length; i++) {
+                String schema = schema_list[i].trim(); 
                 Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
                 Path pd = Files.createDirectories(schemaBaseDir);
                 System.out.println("--------" + schema + "--------");
-                exportToDir(schemaBaseDir, con, props, encoding);
-                con.close();
+                exportToDir(schemaBaseDir, connection_list[i], props, encoding);
+                connection_list[i].close();
             }
 
         } else {
