@@ -29,8 +29,9 @@ connection
    connectiondesc, must be given if no conenction descriptor on commandline
 
 schemas
-  optional comma separated list of schema names, for each schema name <schema> 
-  there must be an entry <schema>.connection
+  optional comma separated list of schema names
+    either: for each schema name <schema>  there must be an entry <schema>.connection
+    or: there is a connection entry and this connection has acces to the dba views
   each schema will get its own directory the name is <schema>
 
 directory

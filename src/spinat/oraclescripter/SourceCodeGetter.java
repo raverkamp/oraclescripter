@@ -11,9 +11,13 @@ public class SourceCodeGetter {
         "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
 
     private final OracleConnection con;
+    private final String owner;
+    private final boolean useDBAViews;
 
-    public SourceCodeGetter(OracleConnection c) {
+    public SourceCodeGetter(OracleConnection c, String owner, boolean useDBAViews) {
         this.con = c;
+        this.owner = owner;
+        this.useDBAViews = useDBAViews;
     }
 
     private HashMap<String, String> usersources = new HashMap<>();
@@ -41,17 +45,20 @@ public class SourceCodeGetter {
             l.add(o.type + "," + o.name);
         }
 
-        String sql = "select name,type,line,text from user_source \n"
+        String sourceView = useDBAViews ? "dba_source" : "all_source";
+        String sql = "select name,type,line,text from " + sourceView + "\n"
                 + " where (type,name) in "
                 + "  (select substr(column_value,1,instr(column_value,',')-1),"
                 + "         substr(column_value,instr(column_value,',')+1)"
                 + " from table(?))"
+                + " and owner = ?"
                 + " order by name,type,line,text";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
             ps.setFetchSize(10000);
             String[] arg = l.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
+            ps.setString(2, this.owner);
             String key = null;
             StringBuilder b = new StringBuilder();
             try (ResultSet rs = ps.executeQuery()) {
@@ -72,12 +79,16 @@ public class SourceCodeGetter {
                 this.usersources.put(key, b.toString());
             }
         }
+        String viewsView = useDBAViews ? "dba_views" : "all_views";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select view_name,text from user_views where view_name in (select column_value from table(?))")) {
+                "select view_name,text from " + viewsView + "\n"
+                + " where view_name in (select column_value from table(?))\n"
+                + "and owner = ?")) {
             ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
+            ps.setString(2, this.owner);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String name = rs.getString(1);
@@ -87,13 +98,17 @@ public class SourceCodeGetter {
             }
         }
 
+        String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select table_name, column_name from user_tab_columns "
-                + "where table_name in (select column_value from table(?)) order by table_name,column_id")) {
+                "select table_name, column_name from " + columnsView + "\n"
+                + "where table_name in (select column_value from table(?))"
+                + " and owner = ?"
+                + " order by table_name,column_id")) {
             ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
             oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setARRAY(1, a);
+            ps.setString(2, this.owner);
             String old_table_name = null;
             StringBuilder b = new StringBuilder();
             try (ResultSet rs = ps.executeQuery()) {
@@ -178,6 +193,7 @@ public class SourceCodeGetter {
     }
 
     private String getTriggerSourceCode(String trigger) {
+        String triggerView = useDBAViews ? "dba_triggers" : "all_triggers";
         try {
             PreparedStatement s = con.prepareStatement("select "
                     + "TRIGGER_NAME,\n"
@@ -194,8 +210,9 @@ public class SourceCodeGetter {
                     + "ACTION_TYPE,\n"
                     + "TRIGGER_BODY,\n"
                     + "user\n"
-                    + " from user_triggers where trigger_name = ?");
+                    + " from " + triggerView + " where trigger_name = ? and owner = ?");
             s.setString(1, trigger);
+            s.setString(2, this.owner);
             ResultSet rs = s.executeQuery();
 
             if (rs.next()) {

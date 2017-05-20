@@ -1,6 +1,7 @@
 package spinat.oraclescripter;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -13,7 +14,10 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import oracle.jdbc.OracleConnection;
 
 public class Main {
@@ -24,7 +28,8 @@ public class Main {
         System.exit(1);
     }
 
-    private static ArrayList<DBObject> getDBObjects(Connection c, java.util.Properties p) throws SQLException {
+    // rezurn the list of objects to script, this list is sorted!
+    private static ArrayList<DBObject> getDBObjects(Connection c, String owner, boolean useDBAViews, java.util.Properties p) throws SQLException {
         String objs = Helper.getProp(p, "objects", null);
         String obj_where = Helper.getProp(p, "object-where", null);
         String obj_file = Helper.getProp(p, "object-file", null);
@@ -44,22 +49,26 @@ public class Main {
             ArrayList<String> a = Helper.objectsFromFile(obj_file);
             where_clause = "object_name in " + Helper.arrayToInList(a);
         }
+        String objectView = useDBAViews ? "dba_objects" : "all_objects";
         try (PreparedStatement stm = c.prepareStatement("select distinct object_name,object_type\n"
-                + "from user_objects \n"
+                + "from " + objectView + "\n"
                 + "where object_type in ('PACKAGE','PROCEDURE',\n"
                 + "'FUNCTION','VIEW','TRIGGER','TYPE')\n"
+                + " and owner = ? "
                 + " and ( object_type <>'TYPE' or object_name in (select type_name from user_types)) "
                 + " and (" + where_clause + " ) "
                 // views come last, this is important
-                + " order by object_type,object_name ");
-                ResultSet rs = stm.executeQuery()) {
-            ArrayList<DBObject> res = new ArrayList<>();
-            while (rs.next()) {
-                String name = rs.getString(1);
-                String type = rs.getString(2);
-                res.add(new DBObject(type, name));
+                + " order by object_type,object_name ")) {
+            stm.setString(1, owner);
+            try (ResultSet rs = stm.executeQuery()) {
+                ArrayList<DBObject> res = new ArrayList<>();
+                while (rs.next()) {
+                    String name = rs.getString(1);
+                    String type = rs.getString(2);
+                    res.add(new DBObject(type, name));
+                }
+                return res;
             }
-            return res;
         }
     }
 
@@ -208,6 +217,35 @@ public class Main {
         }
     }
 
+    static boolean hasDBAViews(Connection c) throws SQLException {
+        // if we have access to dba_objects we assume that we have access to the rest as well
+        // we get an exception if we do not have access
+        //  but we check that the exception has nothing to do with the connection
+        try (PreparedStatement stm = c.prepareStatement("select 1 as a from dba_objects where 1=2");
+                ResultSet rs = stm.executeQuery()) {
+            return true;
+        } catch (SQLException ex) {
+
+            if (c.isValid(5)) {
+                return false;
+            } else {
+                throw ex;
+            }
+        }
+    }
+     static boolean userExists(Connection c, String owner) throws SQLException {
+         try (PreparedStatement stm = c.prepareStatement("select username from dba_users where username=?")) {
+             stm.setString(1,owner);
+             try (ResultSet rs = stm.executeQuery()) {
+                 if (rs.next() && rs.getString(1).equals(owner)) {
+                     return true;
+                 } else {
+                     return false;
+                 }
+             }
+         }
+     }
+
     static OracleConnection getConnection(String desc) throws ParseException {
         spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(desc);
         if (!cd.hasPwd()) {
@@ -228,6 +266,21 @@ public class Main {
         }
     }
 
+    private static java.util.Properties loadProperties(String fileName) throws IOException {
+        java.util.Properties props = new java.util.Properties();
+        {
+            Path p = Paths.get(fileName);
+            if (Files.isReadable(p)) {
+                try (FileInputStream fi = new FileInputStream(fileName)) {
+                    props.load(fi);
+                }
+            } else {
+                abort("cannot read property file: " + p);
+            }
+        }
+        return props;
+    }
+
     public static void main(String[] args) throws SQLException, IOException, ParseException {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
@@ -239,60 +292,74 @@ public class Main {
             abort("Expecting at least one Argument: the name of the property file,\n"
                     + "the optional second argument is a connection description");
         }
+        java.util.Properties props = loadProperties(args[0]);
 
-        String connectionDesc = null;
+        String connectionDesc;
         if (args.length == 2) {
             connectionDesc = args[1];
+        } else {
+            connectionDesc = Helper.getProp(props, "connection", null);
         }
-        java.util.Properties props = new java.util.Properties();
-        {
-            Path p = Paths.get(args[0]);
-            if (Files.isReadable(p)) {
-                try (FileInputStream fi = new FileInputStream(args[0])) {
-                    props.load(fi);
-                }
-            } else {
-                abort("cannot read property file: " + p);
-            }
-        }
+
         String encoding = Helper.getProp(props, "encoding", "UTF-8");
 
         Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
-
         String schemas = Helper.getProp(props, "schemas", "");
-        if (!schemas.equals("")) {
-            if (connectionDesc != null) {
-                abort("if multiple schemas connection must not be cammand line parameter");
-            }
-            String[] schema_list = schemas.split(",");
-            OracleConnection[] connection_list = new OracleConnection[schema_list.length];
-            
-            for (int i = 0; i < schema_list.length; i++) {
-                String schema = schema_list[i].trim();
-                String desc = Helper.getProp(props, schema + ".connection");
-                OracleConnection con = getConnection(desc);
-                connection_list[i] = con;
-            }
-            for (int i = 0; i < schema_list.length; i++) {
-                String schema = schema_list[i].trim(); 
-                Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
-                Path pd = Files.createDirectories(schemaBaseDir);
-                System.out.println("--------" + schema + "--------");
-                exportToDir(schemaBaseDir, connection_list[i], props, encoding);
-                connection_list[i].close();
-            }
 
+        if (!schemas.equals("")) {
+            String[] schema_list = schemas.split(",");
+
+            if (connectionDesc != null) {
+                OracleConnection c = getConnection(connectionDesc);
+                if (!hasDBAViews(c)) {
+                    abort("if multiple schemas, one connection given, but without access to dba views");
+                }
+                for(String schema : schema_list) {
+                    if (!userExists(c, schema.trim().toUpperCase(Locale.ROOT))) {
+                        abort("the user " + schema.trim() + " does not exist.");
+                    }
+                }
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    String owner = schema.toUpperCase(Locale.ROOT);
+                    Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    Path pd = Files.createDirectories(schemaBaseDir);
+                    System.out.println("--------" + schema + "--------");
+                    exportToDir(schemaBaseDir, c, owner, true, props, encoding);
+                }
+                c.close();
+            } else {
+                // in the first step make sure we get all connections
+                // only then start scription
+                // note that getConnection might ask for a password
+                OracleConnection[] connection_list = new OracleConnection[schema_list.length];
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    String desc = Helper.getProp(props, schema + ".connection");
+                    OracleConnection con = getConnection(desc);
+                    connection_list[i] = con;
+                }
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    String owner = schema.toUpperCase(Locale.ROOT);
+                    Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    Path pd = Files.createDirectories(schemaBaseDir);
+                    System.out.println("--------" + schema + "--------");
+                    exportToDir(schemaBaseDir, connection_list[i], owner, false, props, encoding);
+                    connection_list[i].close();
+                }
+            }
         } else {
 
             // we have the configuration properties and the diretory they are in
             if (connectionDesc == null) {
-                connectionDesc = Helper.getProp(props, "connection");
+                abort("no connection descriptor found");
             }
-            OracleConnection con = getConnection(connectionDesc);
-            exportToDir(baseDir, con, props, encoding);
-            con.close();
+            try (OracleConnection con = getConnection(connectionDesc)) {
+                exportToDir(baseDir, con, con.getUserName(), false, props, encoding);
+            }
         }
         if (usegit) {
             System.out.println("-------------------");
@@ -303,13 +370,15 @@ public class Main {
     static void exportToDir(
             Path baseDir,
             OracleConnection con,
+            String owner,
+            boolean useDBAViews,
             java.util.Properties props,
             String encoding) throws SQLException, IOException {
         // now get the objects
-        ArrayList<DBObject> objects = getDBObjects(con, props);
+        ArrayList<DBObject> objects = getDBObjects(con, owner, useDBAViews, props);
         ArrayList<Path> allobjects = new ArrayList<>();
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
-        SourceCodeGetter scg = new SourceCodeGetter(con);
+        SourceCodeGetter scg = new SourceCodeGetter(con, owner, useDBAViews);
         scg.load(objects);
         for (DBObject dbo : objects) {
             System.out.println("doing " + dbo.type + " " + dbo.name);
