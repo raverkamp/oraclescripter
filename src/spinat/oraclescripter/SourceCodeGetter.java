@@ -209,7 +209,7 @@ public class SourceCodeGetter {
                     + "DESCRIPTION,\n"
                     + "ACTION_TYPE,\n"
                     + "TRIGGER_BODY,\n"
-                    + "user\n"
+                    + "owner\n"
                     + " from " + triggerView + " where trigger_name = ? and owner = ?");
             s.setString(1, trigger);
             s.setString(2, this.owner);
@@ -228,7 +228,7 @@ public class SourceCodeGetter {
                 String description = rs.getString(11);
                 String action_type = rs.getString(12);
                 String trigger_body = rs.getString(13);
-                String user = rs.getString(14);
+                String owner = rs.getString(14);
 
                 // column_name != null is not implemented,
                 // I think this can be used with inline tables
@@ -237,7 +237,7 @@ public class SourceCodeGetter {
                             + " column_name in user_triggers is not null");
                 }
 
-                String desc2 = removeUser(description, user);
+                String desc2 = removeUser(description, owner);
 
                 rs.close();
                 s.close();
