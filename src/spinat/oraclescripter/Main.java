@@ -315,8 +315,12 @@ public class Main {
             abort("Expecting at least one Argument: the name of the property file,\n"
                     + "the optional second argument is a connection description");
         }
-        java.util.Properties props = loadProperties(args[0]);
-
+        Path propertiesPath = Paths.get(args[0]).toAbsolutePath();
+        java.util.Properties props = loadProperties(propertiesPath.toString());
+        
+        Path relBaseDir = Paths.get(Helper.getProp(props, "directory"));
+        Path baseDir = propertiesPath.getParent().resolve(relBaseDir);
+        
         String connectionDesc;
         if (args.length == 2) {
             connectionDesc = args[1];
@@ -325,8 +329,9 @@ public class Main {
         }
 
         String encoding = Helper.getProp(props, "encoding", "UTF-8");
-
-        Path baseDir = Paths.get(Helper.getProp(props, "directory")).toAbsolutePath();
+        
+        
+        
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
         String schemas = Helper.getProp(props, "schemas", "");

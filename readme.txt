@@ -35,7 +35,9 @@ schemas
   each schema will get its own directory the name is <schema>
 
 directory
-  the directory to where to script to
+  the directory to where to script to. If this is absolute path it will be taken.
+  a relative Path is resolved against the directory of the properties file.
+  the current directory is only used for finding the properties file.
 
 usegit
   wether to script and then checkin via the git version control system
