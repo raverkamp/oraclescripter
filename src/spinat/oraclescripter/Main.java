@@ -165,11 +165,12 @@ public class Main {
     }
 
     static String appendSlash(String s) {
-        if (s.endsWith("\n")) {
-            return s + "/\n";
-        } else {
-            return s + "\n/\n";
+        int l = s.length()-1;
+        while(l>= 0 && Character.isWhitespace(s.charAt(l))) {
+            l--;
         }
+        s = s.substring(0,l+1);
+        return s + "\n/\n";
     }
 
     static Path writePrivateSynonyms(OracleConnection con, Path baseDir, String encoding, boolean useDBAViews, String owner)
