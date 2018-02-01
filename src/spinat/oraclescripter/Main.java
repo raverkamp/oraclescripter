@@ -1,7 +1,6 @@
 package spinat.oraclescripter;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
@@ -11,13 +10,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import oracle.jdbc.OracleConnection;
 
 public class Main {
@@ -28,7 +28,7 @@ public class Main {
         System.exit(1);
     }
 
-    // rezurn the list of objects to script, this list is sorted!
+    // return the list of objects to script, this list is sorted!
     private static ArrayList<DBObject> getDBObjects(Connection c, String owner, boolean useDBAViews, java.util.Properties p) throws SQLException {
         String objs = Helper.getProp(p, "objects", null);
         String obj_where = Helper.getProp(p, "object-where", null);
@@ -304,7 +304,7 @@ public class Main {
         return props;
     }
 
-    public static void main(String[] args) throws SQLException, IOException, ParseException {
+    public static void main(String[] args) throws Exception {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (Exception e) {
@@ -316,22 +316,20 @@ public class Main {
                     + "the optional second argument is a connection description");
         }
         Path propertiesPath = Paths.get(args[0]).toAbsolutePath();
-        java.util.Properties props = loadProperties(propertiesPath.toString());
-        
+        final java.util.Properties props = loadProperties(propertiesPath.toString());
+
         Path relBaseDir = Paths.get(Helper.getProp(props, "directory"));
         Path baseDir = propertiesPath.getParent().resolve(relBaseDir);
-        
-        String connectionDesc;
+
+        final String connectionDesc;
         if (args.length == 2) {
             connectionDesc = args[1];
         } else {
             connectionDesc = Helper.getProp(props, "connection", null);
         }
 
-        String encoding = Helper.getProp(props, "encoding", "UTF-8");
-        
-        
-        
+        final String encoding = Helper.getProp(props, "encoding", "UTF-8");
+
         boolean usegit = Helper.getPropBool(props, "usegit", false);
         prepareBaseDir(baseDir, usegit);
         String schemas = Helper.getProp(props, "schemas", "");
@@ -340,44 +338,79 @@ public class Main {
             String[] schema_list = schemas.split(",");
 
             if (connectionDesc != null) {
-                OracleConnection c = getConnection(connectionDesc);
-                if (!hasDBAViews(c)) {
-                    abort("if multiple schemas, one connection given, but without access to dba views");
-                }
-                for (String schema : schema_list) {
-                    if (!userExists(c, schema.trim().toUpperCase(Locale.ROOT))) {
-                        abort("the user " + schema.trim() + " does not exist.");
+                try (OracleConnection c = getConnection(connectionDesc)) {
+                    if (!hasDBAViews(c)) {
+                        abort("if multiple schemas, one connection given, but without access to dba views");
+                    }
+                    for (String schema : schema_list) {
+                        if (!userExists(c, schema.trim().toUpperCase(Locale.ROOT))) {
+                            abort("the user " + schema.trim() + " does not exist.");
+                        }
                     }
                 }
+                ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
+                ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
                 for (int i = 0; i < schema_list.length; i++) {
                     String schema = schema_list[i].trim();
-                    String owner = schema.toUpperCase(Locale.ROOT);
-                    Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    final String owner = schema.toUpperCase(Locale.ROOT);
+                    final Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
                     Path pd = Files.createDirectories(schemaBaseDir);
-                    System.out.println("--------" + schema + "--------");
-                    exportToDir(schemaBaseDir, c, owner, true, props, encoding);
+                    Callable<Object> callable = new Callable<Object>() {
+                        @Override
+                        public Object call() throws Exception {
+                            try (OracleConnection c = getConnection(connectionDesc)) {
+                                Main.exportToDir(schemaBaseDir, c, owner, true, props, encoding);
+                            }
+                            return "";
+                        }
+                    };
+                    FutureTask<Object> t = new FutureTask<>(callable);
+                    tasks.add(t);
+                    pool.execute(t);
                 }
-                c.close();
+                for (FutureTask<Object> t : tasks) {
+                    System.out.print(t.get());
+                }
+                pool.shutdown();
             } else {
                 // in the first step make sure we get all connections
                 // only then start scription
                 // note that getConnection might ask for a password
-                OracleConnection[] connection_list = new OracleConnection[schema_list.length];
+                final OracleConnection[] connection_list = new OracleConnection[schema_list.length];
                 for (int i = 0; i < schema_list.length; i++) {
                     String schema = schema_list[i].trim();
                     String desc = Helper.getProp(props, schema + ".connection");
                     OracleConnection con = getConnection(desc);
                     connection_list[i] = con;
                 }
+                ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
+                ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
                 for (int i = 0; i < schema_list.length; i++) {
                     String schema = schema_list[i].trim();
-                    String owner = schema.toUpperCase(Locale.ROOT);
-                    Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    final String owner = schema.toUpperCase(Locale.ROOT);
+                    final Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
                     Path pd = Files.createDirectories(schemaBaseDir);
-                    System.out.println("--------" + schema + "--------");
-                    exportToDir(schemaBaseDir, connection_list[i], owner, false, props, encoding);
-                    connection_list[i].close();
+                    final OracleConnection con = connection_list[i];
+                    Callable<Object> callable = new Callable<Object>() {
+                        @Override
+                        public Object call() throws Exception {
+                            // this way the conenction is closed automatically
+                            try (OracleConnection c = con) {
+                                Main.exportToDir(schemaBaseDir, c, owner, false, props, encoding);
+                            }
+                            return "";
+                        }
+                    };
+                    FutureTask<Object> t = new FutureTask<>(callable);
+                    tasks.add(t);
+                    pool.execute(t);
                 }
+                for (FutureTask<Object> t : tasks) {
+                    // return value is "" , avoid warning that value is not used
+                    System.out.print(t.get());
+                }
+                pool.shutdown();
+
             }
         } else {
 
@@ -409,7 +442,7 @@ public class Main {
         SourceCodeGetter scg = new SourceCodeGetter(con, owner, useDBAViews);
         scg.load(objects);
         for (DBObject dbo : objects) {
-            System.out.println("doing " + dbo.type + " " + dbo.name);
+            System.out.println("doing " + dbo.type + " " + owner + "." + dbo.name);
             if (dbo.type.equals("PACKAGE")) {
                 if (combine_spec_body) {
                     String s = scg.getCode("PACKAGE", dbo.name);
