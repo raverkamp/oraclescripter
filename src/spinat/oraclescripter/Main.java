@@ -270,7 +270,18 @@ public class Main {
         }
     }
 
-    static OracleConnection getConnection(String desc) throws ParseException {
+    private static class ConnectionAndDesc {
+        public final OracleConnection connection;
+        public final spinat.oraclelogin.OraConnectionDesc connectionDesc;
+        
+        public ConnectionAndDesc(OracleConnection connection, spinat.oraclelogin.OraConnectionDesc connectionDesc) {
+            this.connection = connection;
+            this.connectionDesc = connectionDesc;
+        }
+        
+    }
+    
+    static ConnectionAndDesc getConnectionAndDesc(String desc) throws ParseException {
         spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(desc);
         if (!cd.hasPwd()) {
             if (System.console() == null) {
@@ -279,15 +290,18 @@ public class Main {
             char[] pw = System.console().readPassword("Password for " + cd.display() + ":");
             cd.setPwd(new String(pw));
         }
-        OracleConnection con = null;
         try {
-            return cd.getConnection();
+            return new ConnectionAndDesc(cd.getConnection(), cd);
         } catch (SQLException e) {
             abort("cannot get connection described by " + desc
                     + "\n" + e.toString());
             // abort aborts, so never reached
             throw new Error("");
         }
+    }
+    
+    static OracleConnection getConnection(String desc) throws ParseException {
+        return getConnectionAndDesc(desc).connection;
     }
 
     private static java.util.Properties loadProperties(String fileName) throws IOException {
@@ -339,7 +353,8 @@ public class Main {
             String[] schema_list = schemas.split(",");
 
             if (connectionDesc != null) {
-                try (OracleConnection c = getConnection(connectionDesc)) {
+                final ConnectionAndDesc cad = getConnectionAndDesc(connectionDesc);
+                try (OracleConnection c = cad.connection) {
                     if (!hasDBAViews(c)) {
                         abort("if multiple schemas, one connection given, but without access to dba views");
                     }
@@ -348,7 +363,8 @@ public class Main {
                             abort("the user " + schema.trim() + " does not exist.");
                         }
                     }
-                }
+                } // the conenction is closed
+                
                 ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
                 ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
                 for (int i = 0; i < schema_list.length; i++) {
@@ -359,7 +375,7 @@ public class Main {
                     Callable<Object> callable = new Callable<Object>() {
                         @Override
                         public Object call() throws Exception {
-                            try (OracleConnection c = getConnection(connectionDesc)) {
+                            try (OracleConnection c = cad.connectionDesc.getConnection()) {
                                 Main.exportToDir(schemaBaseDir, c, owner, true, props, encoding);
                             }
                             return "";
