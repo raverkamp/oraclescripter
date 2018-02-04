@@ -23,17 +23,20 @@ public class SourceCodeGetter {
     private HashMap<String, String> usersources = new HashMap<>();
     private HashMap<String, String> view_sources = new HashMap<>();
     private HashMap<String, String> view_tab_columns = new HashMap<>();
+    private HashMap<String, String> trigger_sources = new HashMap<>();
 
     public void load(ArrayList<DBObject> objects) throws SQLException {
         this.usersources = new HashMap<>();
         ArrayList<String> l = new ArrayList<>();
         ArrayList<String> views = new ArrayList<>();
+        ArrayList<String> triggers = new ArrayList<>();
         for (DBObject o : objects) {
             if (o.type.equals("VIEW")) {
                 views.add(o.name);
                 continue;
             }
             if (o.type.equals("TRIGGER")) {
+                triggers.add(o.name);
                 continue;
             }
             if (o.type.equals("PACKAGE")) {
@@ -129,6 +132,63 @@ public class SourceCodeGetter {
                 }
             }
         }
+        String triggerView = useDBAViews ? "dba_triggers" : "all_triggers";
+        try (
+                OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement("select "
+                        + "TRIGGER_NAME,\n"
+                        + "TRIGGER_TYPE,\n"
+                        + "TRIGGERING_EVENT,\n"
+                        + "TABLE_OWNER,\n"
+                        + "BASE_OBJECT_TYPE,\n"
+                        + "TABLE_NAME,\n"
+                        + "COLUMN_NAME,\n"
+                        + "REFERENCING_NAMES,\n"
+                        + "WHEN_CLAUSE,\n"
+                        + "STATUS,\n"
+                        + "DESCRIPTION,\n"
+                        + "ACTION_TYPE,\n"
+                        + "TRIGGER_BODY,\n"
+                        + "owner\n"
+                        + " from " + triggerView + " where trigger_name in (select column_value from table(?)) "
+                        + " and owner = ?")) {
+            ps.setFetchSize(10000);    
+            String[] arg = triggers.toArray(new String[0]);
+            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setARRAY(1, a);
+            ps.setString(2, this.owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String trigger_name = rs.getString(1);
+                    String trigger_type = rs.getString(2);
+                    String trigger_event = rs.getString(3);
+                    String table_owner = rs.getString(4);
+                    String table_name = rs.getString(5);
+                    String column_name = rs.getString(7);
+                    String referencing_names = rs.getString(8);
+                    String when_clause = rs.getString(9);
+                    String status = rs.getString(10);
+                    String description = rs.getString(11);
+                    String action_type = rs.getString(12);
+                    String trigger_body = rs.getString(13);
+                //String owner = rs.getString(14);
+
+                // column_name != null is not implemented,
+                    // I think this can be used with inline tables
+                    if (column_name != null) {
+                        throw new RuntimeException("Trigger " + trigger_name + ": "
+                                + " column_name in user_triggers is not null");
+                    }
+
+                    String desc2 = removeUser(description, owner);
+
+                    String src = "create or replace trigger " + desc2
+                            + ((when_clause == null) ? "" : " when (" + when_clause + ")\n")
+                            + trigger_body;
+                    trigger_sources.put(trigger_name, src);
+                }
+
+            }
+        }
     }
 
     public String getCode(String objectType, String objectName) {
@@ -193,63 +253,6 @@ public class SourceCodeGetter {
     }
 
     private String getTriggerSourceCode(String trigger) {
-        String triggerView = useDBAViews ? "dba_triggers" : "all_triggers";
-        try {
-            PreparedStatement s = con.prepareStatement("select "
-                    + "TRIGGER_NAME,\n"
-                    + "TRIGGER_TYPE,\n"
-                    + "TRIGGERING_EVENT,\n"
-                    + "TABLE_OWNER,\n"
-                    + "BASE_OBJECT_TYPE,\n"
-                    + "TABLE_NAME,\n"
-                    + "COLUMN_NAME,\n"
-                    + "REFERENCING_NAMES,\n"
-                    + "WHEN_CLAUSE,\n"
-                    + "STATUS,\n"
-                    + "DESCRIPTION,\n"
-                    + "ACTION_TYPE,\n"
-                    + "TRIGGER_BODY,\n"
-                    + "owner\n"
-                    + " from " + triggerView + " where trigger_name = ? and owner = ?");
-            s.setString(1, trigger);
-            s.setString(2, this.owner);
-            ResultSet rs = s.executeQuery();
-
-            if (rs.next()) {
-                String trigger_name = rs.getString(1);
-                String trigger_type = rs.getString(2);
-                String trigger_event = rs.getString(3);
-                String table_owner = rs.getString(4);
-                String table_name = rs.getString(5);
-                String column_name = rs.getString(7);
-                String referencing_names = rs.getString(8);
-                String when_clause = rs.getString(9);
-                String status = rs.getString(10);
-                String description = rs.getString(11);
-                String action_type = rs.getString(12);
-                String trigger_body = rs.getString(13);
-                String owner = rs.getString(14);
-
-                // column_name != null is not implemented,
-                // I think this can be used with inline tables
-                if (column_name != null) {
-                    throw new RuntimeException("Trigger " + trigger_name + ": "
-                            + " column_name in user_triggers is not null");
-                }
-
-                String desc2 = removeUser(description, owner);
-
-                rs.close();
-                s.close();
-                String res = "create or replace trigger " + desc2
-                        + ((when_clause == null) ? "" : " when (" + when_clause + ")\n")
-                        + trigger_body;
-                return res;
-            } else {
-                throw new RuntimeException("could not find trigger: " + trigger);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
+        return trigger_sources.get(trigger);
     }
 }
