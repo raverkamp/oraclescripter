@@ -16,21 +16,21 @@ public class SqlPlus {
 
     static Pattern rg_start = Pattern.compile("\\s*(start\\s|(@@)|@)", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_code = 
-            Pattern.compile("\\s*create\\s+((procedure)|(package)|(trigger)|(type))", 
+            Pattern.compile("\\s*create\\s+((procedure)|(package)|(trigger)|(type)|(function))", 
                         Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_or_replace_code = 
-            Pattern.compile("\\s*create\\s+or\\s+replace\\s+((procedure)|(package)|(trigger)|(type))",
+            Pattern.compile("\\s*create\\s+or\\s+replace\\s+((procedure)|(package)|(trigger)|(type)|(function))",
                     Pattern.CASE_INSENSITIVE);
     static Pattern rg_ws = Pattern.compile("\\s+");
 
     static Pattern rg_create_view = 
-            Pattern.compile("\\s*create\\s+view", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("\\s*create\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_or_replace_view = 
-            Pattern.compile("\\s*create\\s+or\\s+replace\\s+view", Pattern.CASE_INSENSITIVE);
+            Pattern.compile("\\s*create\\s+or\\s+replace\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
 
     static Pattern rg_string = Pattern.compile("'(''|[^'])*'");
     static Pattern rg_qident = Pattern.compile("\\\"[^\\\"]*\\\"");
-    static Pattern rg_ident = Pattern.compile("[a-zA-Z]([a-zA-Z0-9\\$\\#])*");
+    static Pattern rg_ident = Pattern.compile("[a-zA-Z]([a-zA-Z0-9\\$\\#_])*");
 
     static Pattern rg_ignore = Pattern.compile("([^;/'\"-])|(/[^*])|(-[^-])");
 
@@ -135,7 +135,7 @@ public class SqlPlus {
     }
 
     String readTillSlash(String firstLine) throws Exception {
-        StringBuilder b = new StringBuilder(firstLine + "\n");
+        StringBuilder b = new StringBuilder(firstLine);
         while (true) {
             String line = this.readLine();
             if (line == null) {
@@ -144,7 +144,7 @@ public class SqlPlus {
             if (line.trim().equals("/")) {
                 return b.toString();
             }
-            b.append(line);
+            b.append("\n").append(line);
         }
     }
     
@@ -284,7 +284,7 @@ public class SqlPlus {
             newFilePath = this.baseDir.resolve(dc.fileName).toAbsolutePath();
         } else {
             
-            newFilePath = this.frames.get(0).filePath.resolve(dc.fileName).toAbsolutePath();
+            newFilePath = this.frames.get(0).filePath.getParent().resolve(dc.fileName).toAbsolutePath();
         }
         FileFrame ff = this.openFile(newFilePath);
         this.frames.add(0, ff);
@@ -412,23 +412,27 @@ public class SqlPlus {
         codes.put("PROCEDURE", Pattern.compile("procedure", Pattern.CASE_INSENSITIVE));
         codes.put("TRIGGER", Pattern.compile("trigger", Pattern.CASE_INSENSITIVE));
         codes.put("VIEW", Pattern.compile("view", Pattern.CASE_INSENSITIVE));
-        codes.put("VIEW FORCE", Pattern.compile("force\\+view", Pattern.CASE_INSENSITIVE));
+        codes.put("FORCE VIEW", Pattern.compile("force\\s+view", Pattern.CASE_INSENSITIVE));
     }
 
     static CodeInfo analyzeCode(String text) throws Exception {
 
-        final String prgText = skipCreateEtc(text);
+        String prgText = skipCreateEtc(text);
         StringInt si = bestMatch(prgText, codes);
         if (si == null) {
             throw new Exception("can not analyze:" + prgText);
         }
         final String what;
+        String rest;
         if (si.s.equals("FORCE VIEW")) {
             what = "VIEW";
+            rest = prgText.substring(si.i).trim();
+            prgText = prgText.substring("force".length()).trim();
         } else {
             what = si.s;
+            rest = prgText.substring(si.i).trim();
         }
-        String rest = prgText.substring(si.i).trim();
+        
 
         final String part1;
         int k = match(rg_ident, rest, 0);

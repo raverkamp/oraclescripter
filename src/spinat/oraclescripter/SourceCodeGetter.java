@@ -42,27 +42,27 @@ public class SourceCodeGetter {
             ps.setARRAY(1, a);
             ps.setString(2, this.owner);
             String key = null;
-            String name = null;
-            String type = null;
+            DBObject currDbo = null;
             StringBuilder b = new StringBuilder();
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    name = rs.getString(1);
-                    type = rs.getString(2);
+                    String name = rs.getString(1);
+                    String type = rs.getString(2);
                     String txt = rs.getString(4);
                     String k2 = type + "," + name;
                     if (!k2.equals(key)) {
                         if (key != null) {
                             this.usersources.put(key, b.toString());
-                            this.source_repo.add(new DBObject(type, name), b.toString());
+                            this.source_repo.add(currDbo, b.toString());
                         }
                         b = new StringBuilder();
                         key = k2;
+                        currDbo = new DBObject(type, name);
                     }
                     b.append(txt);
                 }
                 this.usersources.put(key, b.toString());
-                this.source_repo.add(new DBObject(type, name), b.toString());
+                this.source_repo.add(currDbo, b.toString());
             }
         }
     }

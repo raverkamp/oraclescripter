@@ -2,6 +2,7 @@ package spinat.oraclescripter;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 public class SourceRepo {
     
@@ -20,6 +21,10 @@ public class SourceRepo {
     
     public String get(DBObject o) {
         return this.map.get(o);
+    }
+    
+    Set<DBObject> getEntries() {
+        return this.map.keySet();
     }
 
 }

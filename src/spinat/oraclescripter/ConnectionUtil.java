@@ -89,7 +89,9 @@ final class ConnectionUtil {
     }
     
     public static String connectionUser(OracleConnection c) throws SQLException {
-        return c.getSchema();
+        //java.lang.AbstractMethodError, heh?
+       // return c.getSchema();
+       return c.getUserName();
     }
     
     public static class ObjectCond {
