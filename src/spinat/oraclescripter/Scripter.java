@@ -20,7 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.FutureTask;
 import oracle.jdbc.OracleConnection;
 
-public class Main {
+public class Scripter {
 
     private static void abort(String msg) {
         System.err.println("abort scripting:");
@@ -320,10 +320,206 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        if (args.length >=1 && args[0].compareToIgnoreCase("compare")==0) {
-            Comparer.main(args);
-            return;
+        try {
+            java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
+        } catch (Exception e) {
+            abort("can not initialize Oracle JDBC\n" + e.toString());
         }
-        Scripter.main(args);
+
+        if (args.length < 1) {
+            abort("Expecting at least one Argument: the name of the property file,\n"
+                    + "the optional second argument is a connection description");
+        }
+        Path propertiesPath = Paths.get(args[0]).toAbsolutePath();
+        final java.util.Properties props = loadProperties(propertiesPath.toString());
+
+        Path relBaseDir = Paths.get(Helper.getProp(props, "directory"));
+        Path baseDir = propertiesPath.getParent().resolve(relBaseDir);
+
+        final String connectionDesc;
+        if (args.length == 2) {
+            connectionDesc = args[1];
+        } else {
+            connectionDesc = Helper.getProp(props, "connection", null);
+        }
+
+        final String encoding = Helper.getProp(props, "encoding", "UTF-8");
+
+        boolean usegit = Helper.getPropBool(props, "usegit", false);
+        prepareBaseDir(baseDir, usegit);
+        String schemas = Helper.getProp(props, "schemas", "");
+
+        if (!schemas.equals("")) {
+            String[] schema_list = schemas.split(",");
+
+            if (connectionDesc != null) {
+                final ConnectionAndDesc cad = getConnectionAndDesc(connectionDesc);
+                try (OracleConnection c = cad.connection) {
+                    if (!hasDBAViews(c)) {
+                        abort("if multiple schemas, one connection given, but without access to dba views");
+                    }
+                    for (String schema : schema_list) {
+                        if (!userExists(c, schema.trim().toUpperCase(Locale.ROOT))) {
+                            abort("the user " + schema.trim() + " does not exist.");
+                        }
+                    }
+                } // the conenction is closed
+                
+                ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
+                ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    final String owner = schema.toUpperCase(Locale.ROOT);
+                    final Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    Path pd = Files.createDirectories(schemaBaseDir);
+                    Callable<Object> callable = new Callable<Object>() {
+                        @Override
+                        public Object call() throws Exception {
+                            try (OracleConnection c = cad.connectionDesc.getConnection()) {
+                                exportToDir(schemaBaseDir, c, owner, true, props, encoding);
+                            }
+                            return "";
+                        }
+                    };
+                    FutureTask<Object> t = new FutureTask<>(callable);
+                    tasks.add(t);
+                    pool.execute(t);
+                }
+                for (FutureTask<Object> t : tasks) {
+                    System.out.print(t.get());
+                }
+                pool.shutdown();
+            } else {
+                // in the first step make sure we get all connections
+                // only then start scription
+                // note that getConnection might ask for a password
+                final OracleConnection[] connection_list = new OracleConnection[schema_list.length];
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    String desc = Helper.getProp(props, schema + ".connection");
+                    OracleConnection con = getConnection(desc);
+                    connection_list[i] = con;
+                }
+                ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
+                ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
+                for (int i = 0; i < schema_list.length; i++) {
+                    String schema = schema_list[i].trim();
+                    final String owner = schema.toUpperCase(Locale.ROOT);
+                    final Path schemaBaseDir = baseDir.resolve(schema.toLowerCase());
+                    Path pd = Files.createDirectories(schemaBaseDir);
+                    final OracleConnection con = connection_list[i];
+                    Callable<Object> callable = new Callable<Object>() {
+                        @Override
+                        public Object call() throws Exception {
+                            // this way the conenction is closed automatically
+                            try (OracleConnection c = con) {
+                                exportToDir(schemaBaseDir, c, owner, false, props, encoding);
+                            }
+                            return "";
+                        }
+                    };
+                    FutureTask<Object> t = new FutureTask<>(callable);
+                    tasks.add(t);
+                    pool.execute(t);
+                }
+                for (FutureTask<Object> t : tasks) {
+                    // return value is "" , avoid warning that value is not used
+                    System.out.print(t.get());
+                }
+                pool.shutdown();
+
+            }
+        } else {
+
+            // we have the configuration properties and the diretory they are in
+            if (connectionDesc == null) {
+                abort("no connection descriptor found");
+            }
+            try (OracleConnection con = getConnection(connectionDesc)) {
+                exportToDir(baseDir, con, con.getUserName(), false, props, encoding);
+            }
+        }
+        if (usegit) {
+            System.out.println("-------------------");
+            GitHelper.AddVersion(baseDir.toFile(), "das war es");
+        }
     }
+
+    static void exportToDir(
+            Path baseDir,
+            OracleConnection con,
+            String owner,
+            boolean useDBAViews,
+            java.util.Properties props,
+            String encoding) throws SQLException, IOException {
+        // now get the objects
+        ArrayList<DBObject> objects = getDBObjects(con, owner, useDBAViews, props);
+        ArrayList<Path> allobjects = new ArrayList<>();
+        boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
+        SourceCodeGetter scg = new SourceCodeGetter(con, owner, useDBAViews);
+        scg.load(objects);
+        for (DBObject dbo : objects) {
+            System.out.println("doing " + dbo.type + " " + owner + "." + dbo.name);
+            if (dbo.type.equals("PACKAGE")) {
+                if (combine_spec_body) {
+                    String s = scg.getCode("PACKAGE", dbo.name);
+                    String b = scg.getCode("PACKAGE BODY", dbo.name);
+                    if (b != null) {
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s) + appendSlash(b)));
+                    } else {
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE", dbo.name, appendSlash(s)));
+                    }
+                } else {
+                    String s = scg.getCode("PACKAGE", dbo.name);
+                    allobjects.add(saveObject(baseDir, props, "PACKAGE SPEC", dbo.name, appendSlash(s)));
+                    String b = scg.getCode("PACKAGE BODY", dbo.name);
+                    if (b != null) {
+                        allobjects.add(saveObject(baseDir, props, "PACKAGE BODY", dbo.name, appendSlash(b)));
+                    }
+                }
+            } else if (dbo.type.equals("TYPE")) {
+                if (combine_spec_body) {
+                    String s = scg.getCode("TYPE", dbo.name);
+                    String b = scg.getCode("TYPE BODY", dbo.name);
+                    if (b != null) {
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s) + appendSlash(b)));
+                    } else {
+                        allobjects.add(saveObject(baseDir, props, "TYPE", dbo.name, appendSlash(s)));
+                    }
+                } else {
+                    String s = scg.getCode("TYPE", dbo.name);
+                    allobjects.add(saveObject(baseDir, props, "TYPE SPEC", dbo.name, appendSlash(s)));
+                    String b = scg.getCode("TYPE BODY", dbo.name);
+                    if (b != null) {
+                        allobjects.add(saveObject(baseDir, props, "TYPE BODY", dbo.name, appendSlash(b)));
+                    }
+                }
+            } else {
+                String s = scg.getCode(dbo.type, dbo.name);
+                allobjects.add(saveObject(baseDir, props, dbo.type, dbo.name, appendSlash(s)));
+            }
+        }
+        boolean private_synonyms = Helper.getPropBool(props, "private-synonyms", true);
+        if (private_synonyms) {
+            Path p = writePrivateSynonyms(con, baseDir, encoding, useDBAViews, owner);
+            allobjects.add(0, p);
+        }
+        boolean sequences = Helper.getPropBool(props, "sequences", true);
+        if (sequences) {
+            Path p = writeSequences(con, baseDir, encoding, useDBAViews, owner);
+            allobjects.add(0, p);
+        }
+
+        Path allObjectsPath = baseDir.resolve("all-objects.sql");
+        StringBuilder b = new StringBuilder();
+
+        for (Path p : allobjects) {
+            Path rel = baseDir.relativize(p);
+            b.append("@@").append(rel.toString());
+            b.append("\n");
+        }
+
+        writeTextFile(allObjectsPath, b.toString(), encoding);
+    }
+
 }
