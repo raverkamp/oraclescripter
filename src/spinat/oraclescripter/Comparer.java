@@ -20,6 +20,11 @@ public class Comparer {
         OracleConnection c = ConnectionUtil.getConnection(connectDesc);
         
         String schema = ConnectionUtil.connectionUser(c);
+        ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
+        conds.obj_where="1=1";
+        ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(c, schema, true, conds);
+        SourceCodeGetter sc = new SourceCodeGetter(c, schema, false);
+        sc.load(dbObjects);
         
     }
     

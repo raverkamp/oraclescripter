@@ -10,6 +10,11 @@ import oracle.jdbc.OracleConnection;
 
 final class ConnectionUtil {
     
+    // only static methods, do not create an obejct not even in by a static method
+    private ConnectionUtil() {
+        throw new Error();
+    }
+    
     // fixme
     // duplicate from scripter
     private static void abort(String msg) {
