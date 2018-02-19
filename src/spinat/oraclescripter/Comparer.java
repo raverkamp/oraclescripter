@@ -1,5 +1,9 @@
 package spinat.oraclescripter;
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -19,9 +23,15 @@ public class Comparer {
 
         String fileName = args[1];
         String connectDesc = args[2];
+        final Path baseDir; 
+        if (args.length >=4) {
+           baseDir = Paths.get(args[3]).toRealPath().toAbsolutePath();
+        } else {
+           baseDir = Paths.get(".").toRealPath().toAbsolutePath();
+        }
         Path filePath = Paths.get(fileName).toAbsolutePath();
         // use the current diretory, this is not well defefinde in Java
-        Path baseDir = Paths.get(".").toAbsolutePath();
+        
         SourceRepo repoDisk = loadSource(filePath, baseDir);
 
         OracleConnection c = ConnectionUtil.getConnection(connectDesc);
@@ -52,21 +62,37 @@ public class Comparer {
         }
         return repo;
     }
+    
+    static void writeTextFile(Path p, String txt) throws Exception {
+       PrintWriter pw = new PrintWriter(p.toFile(), "UTF-8");
+       pw.append(txt);
+       pw.close();
+    }
 
-    static void compareRepos(SourceRepo repoDisk, SourceRepo repoDB) {
+    static void compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
         Set<DBObject> objsDisk = repoDisk.getEntries();
         Set<DBObject> objsDB = repoDB.getEntries();
+        Path tempDir = Files.createTempDirectory("changes");
+        Path dbDir = tempDir.resolve("DB");
+        Files.createDirectory(dbDir);
+        Path diskDir = tempDir.resolve("DISK");
+        Files.createDirectory(diskDir);
+        
         for (DBObject dbo : objsDisk) {
             String srcDisk = repoDisk.get(dbo);
             String srcDB = repoDB.get(dbo);
+            String fName =  dbo.name + "-" + dbo.type +".txt";
             if (objsDB.contains(dbo)) {
                 if (!srcDisk.equals(srcDB)) {
                     System.out.println("different: " + dbo.type + ", " + dbo.name);
+                    writeTextFile(diskDir.resolve(fName), srcDisk);
+                    writeTextFile(dbDir.resolve(fName), srcDB);
                 }
             } else {
                 System.out.println("missing in DB: " + dbo.type + ", " + dbo.name);
+                writeTextFile(diskDir.resolve(fName), srcDisk);
             }
         }
+        System.out.println("different files are in folder: " + tempDir);
     }
-
 }

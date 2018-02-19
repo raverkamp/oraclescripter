@@ -27,6 +27,17 @@ public class SqlPlus {
             Pattern.compile("\\s*create\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_or_replace_view = 
             Pattern.compile("\\s*create\\s+or\\s+replace\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
+    
+    static Pattern rg_create_synonym =
+            Pattern.compile("\\s*create\\s+synonym", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_or_replace_synonym =
+            Pattern.compile("\\s*create\\s+or\\s+replace\\s+synonym", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_sequence =
+            Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
+    
+    // CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED bla as ..
+    static Pattern rg_java_etc = 
+            Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)\\s+java\\s+source\\s+named", Pattern.CASE_INSENSITIVE);
 
     static Pattern rg_string = Pattern.compile("'(''|[^'])*'");
     static Pattern rg_qident = Pattern.compile("\\\"[^\\\"]*\\\"");
@@ -210,9 +221,18 @@ public class SqlPlus {
             String s = this.eatSQL(line);
             return new String2("code", s);
         }
-
+        
+        if (rg_create_or_replace_synonym.matcher(line).lookingAt()
+                ||rg_create_synonym.matcher(line).lookingAt()
+                ||rg_create_sequence.matcher(line).lookingAt()) {
+            String s = this.eatSQL(line);
+            return new String2("other", s);
+        }
+        if(rg_java_etc.matcher(line).lookingAt()) {
+            String s = this.readTillSlash(line);
+            return new String2("java", s);
+        }
         throw new Exception("can not identify line: " + line);
-
     }
 
     static class StartDecomp {

@@ -16,7 +16,7 @@ public class SourceRepo {
     }
  
     public void add(DBObject o, String s) {
-        this.map.put(o, s);
+        this.map.put(o, s.trim());
     }
     
     public String get(DBObject o) {
