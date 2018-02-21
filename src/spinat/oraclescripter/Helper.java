@@ -5,6 +5,7 @@ import java.io.*;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 public class Helper {
 
@@ -292,6 +293,26 @@ public class Helper {
         } catch (InterruptedException ex) {
             throw new RuntimeException(ex);
         }
+    }
+    
+    public static java.util.Properties loadProperties(Path p) throws IOException {
+        java.util.Properties props = new java.util.Properties();
+        {
+            if (Files.isReadable(p)) {
+                try (FileInputStream fi = new FileInputStream(p.toFile())) {
+                    props.load(fi);
+                }
+            } else {
+                abort("cannot read property file: " + p);
+            }
+        }
+        return props;
+    }
+    
+    public static void abort(String msg) {
+        System.err.println("abort scripting:");
+        System.err.println(msg);
+        System.exit(1);
     }
 
 }

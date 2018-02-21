@@ -28,12 +28,6 @@ import static spinat.oraclescripter.ConnectionUtil.userExists;
 
 public class Scripter {
 
-    private static void abort(String msg) {
-        System.err.println("abort scripting:");
-        System.err.println(msg);
-        System.exit(1);
-    }
-
     private static void writeTextFile(Path file, String txt, String encoding) throws IOException {
         if (Files.exists(file)) {
             throw new RuntimeException("file " + file + " already exists");
@@ -197,36 +191,19 @@ public class Scripter {
         }
     }
 
-    
-
-    private static java.util.Properties loadProperties(String fileName) throws IOException {
-        java.util.Properties props = new java.util.Properties();
-        {
-            Path p = Paths.get(fileName);
-            if (Files.isReadable(p)) {
-                try (FileInputStream fi = new FileInputStream(fileName)) {
-                    props.load(fi);
-                }
-            } else {
-                abort("cannot read property file: " + p);
-            }
-        }
-        return props;
-    }
-
     public static void mainx(String[] args) throws Exception {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (Exception e) {
-            abort("can not initialize Oracle JDBC\n" + e.toString());
+            Helper.abort("can not initialize Oracle JDBC\n" + e.toString());
         }
 
         if (args.length < 1) {
-            abort("Expecting at least one Argument: the name of the property file,\n"
+            Helper.abort("Expecting at least one Argument: the name of the property file,\n"
                     + "the optional second argument is a connection description");
         }
         Path propertiesPath = Paths.get(args[0]).toAbsolutePath();
-        final java.util.Properties props = loadProperties(propertiesPath.toString());
+        final java.util.Properties props = Helper.loadProperties(propertiesPath);
 
         Path relBaseDir = Paths.get(Helper.getProp(props, "directory"));
         Path baseDir = propertiesPath.getParent().resolve(relBaseDir);
@@ -251,11 +228,11 @@ public class Scripter {
                 final ConnectionAndDesc cad = getConnectionAndDesc(connectionDesc);
                 try (OracleConnection c = cad.connection) {
                     if (!hasDBAViews(c)) {
-                        abort("if multiple schemas, one connection given, but without access to dba views");
+                        Helper.abort("if multiple schemas, one connection given, but without access to dba views");
                     }
                     for (String schema : schema_list) {
                         if (!userExists(c, schema.trim().toUpperCase(Locale.ROOT))) {
-                            abort("the user " + schema.trim() + " does not exist.");
+                            Helper.abort("the user " + schema.trim() + " does not exist.");
                         }
                     }
                 } // the conenction is closed
@@ -328,7 +305,7 @@ public class Scripter {
 
             // we have the configuration properties and the diretory they are in
             if (connectionDesc == null) {
-                abort("no connection descriptor found");
+                Helper.abort("no connection descriptor found");
             }
             try (OracleConnection con = getConnection(connectionDesc)) {
                 exportToDir(baseDir, con, con.getUserName(), false, props, encoding);

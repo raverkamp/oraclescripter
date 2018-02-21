@@ -15,14 +15,6 @@ final class ConnectionUtil {
         throw new Error();
     }
     
-    // fixme
-    // duplicate from scripter
-    private static void abort(String msg) {
-        System.err.println("abort scripting:");
-        System.err.println(msg);
-        System.exit(1);
-    }
-    
     public static class ConnectionAndDesc {
 
         public final OracleConnection connection;
@@ -39,7 +31,7 @@ final class ConnectionUtil {
         spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(desc);
         if (!cd.hasPwd()) {
             if (System.console() == null) {
-                abort("No password was given and there is no input console to enter it.");
+                Helper.abort("No password was given and there is no input console to enter it.");
             }
             char[] pw = System.console().readPassword("Password for " + cd.display() + ":");
             cd.setPwd(new String(pw));
@@ -47,7 +39,7 @@ final class ConnectionUtil {
         try {
             return new ConnectionAndDesc(cd.getConnection(), cd);
         } catch (SQLException e) {
-            abort("cannot get connection described by " + desc
+            Helper.abort("cannot get connection described by " + desc
                     + "\n" + e.toString());
             // abort aborts, so never reached
             throw new Error("");
