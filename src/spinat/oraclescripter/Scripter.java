@@ -28,23 +28,6 @@ import static spinat.oraclescripter.ConnectionUtil.userExists;
 
 public class Scripter {
 
-    private static void writeTextFile(Path file, String txt, String encoding) throws IOException {
-        if (Files.exists(file)) {
-            throw new RuntimeException("file " + file + " already exists");
-        }
-        String s = Helper.stringUnixLineEnd(txt);
-        if (encoding.equals("german-ascii")) {
-            encoding = "ascii";
-            s = s.replace("\u00C4", "Ae").replace("\u00D6", "Oe").replace("\u00DC", "Ue")
-                    .replace("\u00E4", "ae").replace("\u00F6", "oe").replace("\u00FC", "ue")
-                    .replace("\u00DF", "ss");
-        }
-
-        try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
-            ps.append(s);
-        }
-    }
-
     static Map<String, String> suffixMap = Helper.mkStringMap(
             new String[]{
                 "package_body", "pkb",
@@ -96,7 +79,7 @@ public class Scripter {
         }
 
         Path file = baseDir.resolve(fileRelative);
-        writeTextFile(file, src, encoding);
+        Helper.writeTextFile(file, src, encoding);
         return file;
     }
 
@@ -157,7 +140,7 @@ public class Scripter {
                 }
             }
         }
-        writeTextFile(synPath, b.toString(), encoding);
+        Helper.writeTextFile(synPath, b.toString(), encoding);
         return synPath;
     }
 
@@ -186,7 +169,7 @@ public class Scripter {
                     b.append("\n");
                 }
             }
-            writeTextFile(synPath, b.toString(), encoding);
+            Helper.writeTextFile(synPath, b.toString(), encoding);
             return synPath;
         }
     }
@@ -393,10 +376,10 @@ public class Scripter {
         for (Path p : allobjects) {
             Path rel = baseDir.relativize(p);
             b.append("@@").append(rel.toString());
-            b.append("\n");
+            b.append("\n");  
         }
 
-        writeTextFile(allObjectsPath, b.toString(), encoding);
+        Helper.writeTextFile(allObjectsPath, b.toString(), encoding);
     }
 
 }
