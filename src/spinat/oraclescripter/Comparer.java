@@ -41,7 +41,7 @@ public class Comparer {
                 baseDir = Paths.get(".").toRealPath().toAbsolutePath();
             }
             Path filePath = Paths.get(fileName).toAbsolutePath();
-           // use the current diretory, this is not well defefinde in Java
+            // use the current diretory, this is not well defefinde in Java
 
             SourceRepo repoDisk = loadSource(filePath, baseDir);
 
@@ -54,7 +54,8 @@ public class Comparer {
             SourceCodeGetter sc = new SourceCodeGetter(c, schema, false);
             sc.load(dbObjects);
             SourceRepo repoDB = sc.getSourceRepo();
-            compareRepos(repoDisk, repoDB);
+            Path cmpDir = compareRepos(repoDisk, repoDB);
+            System.out.println("dfferences ar in folder: " + cmpDir.toString());
         }
     }
 
@@ -70,7 +71,7 @@ public class Comparer {
         Files.createDirectory(dbDir);
         Path diskDir = tempDir.resolve("DISK");
         Files.createDirectory(diskDir);
-        for(String schema : schema_list) {
+        for (String schema : schema_list) {
             String owner = schema.toUpperCase(Locale.ROOT);
             ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
             conds.obj_where = "1=1";
@@ -86,7 +87,18 @@ public class Comparer {
             Path diskDir2 = Files.createDirectory(diskDir.resolve(owner));
             compareRepos(repoDisk, diskDir2, repoDB, dbDir2);
         }
-        System.out.printf("changes are in folder: " + tempDir);
+        if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
+            Runtime rt = Runtime.getRuntime();
+            Process pr = rt.exec(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
+                //"/r",
+                "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
+                dbDir.toString(),
+                diskDir.toString()
+            });
+            pr.waitFor();
+        } else {
+            System.out.printf("changes are in folder: " + tempDir);
+        }
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
@@ -105,9 +117,9 @@ public class Comparer {
         }
         return repo;
     }
-    
+
     static void compareRepos(SourceRepo repoDisk, Path dirDisk,
-                             SourceRepo repoDB, Path dirDB) throws IOException {
+            SourceRepo repoDB, Path dirDB) throws IOException {
         Set<DBObject> objsDisk = repoDisk.getEntries();
         Set<DBObject> objsDB = repoDB.getEntries();
         for (DBObject dbo : objsDisk) {
@@ -118,7 +130,7 @@ public class Comparer {
                 if (!srcDisk.equals(srcDB)) {
                     System.out.println("different: " + dbo.type + ", " + dbo.name);
                     Helper.writeTextFile(dirDisk.resolve(fName), srcDisk, "UTF-8");
-                    Helper.writeTextFile(dirDB.resolve(fName), srcDB,  "UTF-8");
+                    Helper.writeTextFile(dirDB.resolve(fName), srcDB, "UTF-8");
                 }
             } else {
                 System.out.println("missing in DB: " + dbo.type + ", " + dbo.name);
@@ -127,7 +139,7 @@ public class Comparer {
         }
     }
 
-    static void compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
+    static Path compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
         Set<DBObject> objsDisk = repoDisk.getEntries();
         Set<DBObject> objsDB = repoDB.getEntries();
         Path tempDir = Files.createTempDirectory("changes");
@@ -136,6 +148,6 @@ public class Comparer {
         Path diskDir = tempDir.resolve("DISK");
         Files.createDirectory(diskDir);
         compareRepos(repoDisk, diskDir, repoDB, dbDir);
-        System.out.println("different files are in folder: " + tempDir);
+        return tempDir;
     }
 }

@@ -212,6 +212,9 @@ public class SqlPlus {
         if (line.trim().isEmpty()) {
             return new String2("empty", line);
         }
+        if (line.trim().equals("/")) {
+            return new String2("slash", line);
+        }
         if (rg_comment.matcher(line).lookingAt()) {
             return new String2("comment", line);
         }
