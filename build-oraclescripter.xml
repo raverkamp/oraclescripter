@@ -9,7 +9,7 @@
     <property name="build" location="build"/>
     <property name="dist"  location="dist"/>
     <property name="libs" location="libs"/>
-    <property name="jre7" value="${env.jre7}"/>
+    <property name="jre8" value="${env.jre8}"/>
   
     <target name="clean"
             description="clean up" > 
@@ -24,14 +24,14 @@
   
     <target name="compile" depends="init"
             description="compile the source " >
-        <javac target="1.7" source="1.7" srcdir="${src}" destdir="${build}" 
+        <javac target="1.8" source="1.8" srcdir="${src}" destdir="${build}" 
                includeantruntime="false"
-               bootclasspath="${jre7}/lib/rt.jar"
+               bootclasspath="${jre8}/lib/rt.jar"
                deprecation="true"
                debug="true">
             <compilerarg value="-Xlint:unchecked"/>
             <classpath>
-                <pathelement location="${libs}/ojdbc6.jar"/>
+                <pathelement location="${libs}/ojdbc8.jar"/>
                 <pathelement location="${libs}/org.eclipse.jgit-4.2.0.201601211800-r.jar"/>
                 <pathelement location="${libs}/slf4j-api-1.7.14.jar"/>
             </classpath>
@@ -41,14 +41,14 @@
     <target name="dist" depends="compile"
             description="generate the distribution, with the main jar and a manifest which references the oracle jdbc file" >
         <mkdir dir="${dist}/oraclescripter"/>
-        <copy file="${libs}/ojdbc6.jar" todir="${dist}/oraclescripter"/>
+        <copy file="${libs}/ojdbc8.jar" todir="${dist}/oraclescripter"/>
         <copy file="${libs}/org.eclipse.jgit-4.2.0.201601211800-r.jar" todir="${dist}/oraclescripter"/>
         <copy file="${libs}/slf4j-api-1.7.14.jar" todir="${dist}/oraclescripter"/>
         <jar jarfile="${dist}/oraclescripter/main.jar" basedir="${build}">
             <manifest>
                 <attribute name="Main-Class"
                            value="spinat.oraclescripter.Main"/>
-                <attribute name="Class-Path" value="./ojdbc6.jar ./slf4j-api-1.7.14.jar ./org.eclipse.jgit-4.2.0.201601211800-r.jar"/>
+                <attribute name="Class-Path" value="./ojdbc8.jar ./slf4j-api-1.7.14.jar ./org.eclipse.jgit-4.2.0.201601211800-r.jar"/>
             </manifest>
         </jar>
     </target>  
