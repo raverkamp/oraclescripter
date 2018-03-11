@@ -6,6 +6,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
@@ -16,28 +20,27 @@ import spinat.oraclescripter.SqlPlus.Snippet;
 public class Comparer {
 
     private static String padRight(String s, int n, char c) {
-        if (s.length()>=n) {
-           return s;
+        if (s.length() >= n) {
+            return s;
         }
         StringBuilder b = new StringBuilder(s);
-        for(int i=0;i< n-s.length(); i++){
+        for (int i = 0; i < n - s.length(); i++) {
             b.append(c);
         }
         return b.toString();
     }
-    
+
     private static String padLeft(String s, int n, char c) {
-        if (s.length()>=n) {
-           return s;
+        if (s.length() >= n) {
+            return s;
         }
-        StringBuilder b = new StringBuilder();   
-        for(int i=0;i< n-s.length(); i++){
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < n - s.length(); i++) {
             b.append(c);
         }
         b.append(s);
         return b.toString();
     }
-    
     
     // main entry point for doing compare
     public static void mainx(String[] args) throws Exception {
@@ -148,32 +151,44 @@ public class Comparer {
             SourceRepo repoDB, Path dirDB) throws IOException {
         Set<DBObject> objsDisk = repoDisk.getEntries(); // sort !
         Set<DBObject> objsDB = repoDB.getEntries();
-        
-        for (DBObject dbo : objsDisk) {
-            String srcDisk = repoDisk.get(dbo);
-            String srcDB = repoDB.get(dbo);
+        Set<DBObject> all = new HashSet<>();
+        all.addAll(objsDB);
+        all.addAll(objsDisk);
+        DBObject[] allArray = all.toArray(new DBObject[0]);
+        java.util.Arrays.sort(allArray, new Comparator<DBObject>() {
+            @Override
+            public int compare(DBObject o1, DBObject o2) {
+                int x = o1.type.compareTo(o2.type);
+                if (x == 0) {
+                    return o1.name.compareTo(o2.name);
+                } else {
+                    return x;
+                }
+            }
+        });
+        for (DBObject dbo : allArray) {
             String fName = dbo.name + "-" + dbo.type + ".txt";
             if (objsDB.contains(dbo)) {
-                if (!srcDisk.equals(srcDB)) {
-                    System.out.println(padLeft("different: ",20, ' ') + padRight(schema,30, ' ') 
-                            + " " + padRight(dbo.type,20, ' ') + " " + dbo.name);
-                    Helper.writeTextFile(dirDisk.resolve(fName), srcDisk, "UTF-8");
-                    Helper.writeTextFile(dirDB.resolve(fName), srcDB, "UTF-8");
+                String srcDB = repoDB.get(dbo);
+                if (objsDisk.contains(dbo)) {
+                    String srcDisk = repoDisk.get(dbo);
+                    if (!srcDisk.equals(srcDB)) {
+                        System.out.println(padLeft("different: ", 20, ' ') + padRight(schema, 30, ' ')
+                                + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
+                        Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, "UTF-8");
+                        Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, "UTF-8");
+                    }
+                } else {
+                    System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
+                            + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
+                    Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDB, "UTF-8");
                 }
             } else {
-                System.out.println(padLeft("missing in DB: ",20,' ') + padRight(schema,30, ' ') 
-                        + " " + padRight(dbo.type,20, ' ') + ", " + dbo.name);
-                Helper.writeTextFile(dirDisk.resolve(fName), srcDisk, "UTF-8");
+                System.out.println(padLeft("missing in DB: ", 20, ' ') + padRight(schema, 30, ' ')
+                        + " " + padRight(dbo.type, 20, ' ') + ", " + dbo.name);
+                String srcDisk = repoDisk.get(dbo);
+                Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, "UTF-8");
             }
-        }
-        for(DBObject dbo: objsDB) {
-             if (!objsDisk.contains(dbo)) {
-                System.out.println(padLeft("missing on Disk: ",20,' ') + padRight(schema,30, ' ') 
-                        + " " + padRight(dbo.type,20, ' ') + " " + dbo.name);  
-                 String fName = dbo.name + "-" + dbo.type + ".txt";
-                 String srcDB = repoDB.get(dbo);
-                Helper.writeTextFile(dirDisk.resolve(fName), srcDB, "UTF-8");
-             }
         }
     }
 
