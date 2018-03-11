@@ -1,29 +1,50 @@
 package spinat.oraclescripter;
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
-import javax.management.RuntimeErrorException;
 import oracle.jdbc.OracleConnection;
-import static spinat.oraclescripter.ConnectionUtil.getConnectionAndDesc;
 import spinat.oraclescripter.SqlPlus.CodeInfo;
 import spinat.oraclescripter.SqlPlus.Snippet;
 
 public class Comparer {
 
+    private static String padRight(String s, int n, char c) {
+        if (s.length()>=n) {
+           return s;
+        }
+        StringBuilder b = new StringBuilder(s);
+        for(int i=0;i< n-s.length(); i++){
+            b.append(c);
+        }
+        return b.toString();
+    }
+    
+    private static String padLeft(String s, int n, char c) {
+        if (s.length()>=n) {
+           return s;
+        }
+        StringBuilder b = new StringBuilder();   
+        for(int i=0;i< n-s.length(); i++){
+            b.append(c);
+        }
+        b.append(s);
+        return b.toString();
+    }
+    
+    
+    // main entry point for doing compare
     public static void mainx(String[] args) throws Exception {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
-        } catch (Exception e) {
-            throw new Exception("can not initialize Oracle JDBC\n" + e.toString());
+        } catch (SQLException e) {
+            throw new RuntimeException("can not initialize Oracle JDBC", e);
         }
         if (!args[0].equalsIgnoreCase("compare")) {
             throw new RuntimeException("first argument must be 'compare'");
@@ -59,6 +80,10 @@ public class Comparer {
         }
     }
 
+    // invocatiobn with a properties file
+    // the required properties:
+    //  schemas: comma separated list of schemas
+    //  connection: a connection descriptor string
     static void mainFile(String fileName) throws Exception {
         Path realPath = Paths.get(fileName).toAbsolutePath();
         Properties props = Helper.loadProperties(realPath);
@@ -66,6 +91,7 @@ public class Comparer {
         String connectionDesc = Helper.getProp(props, "connection");
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
         String[] schema_list = schemas.split(",");
+        // create the temporary directories for comparision
         Path tempDir = Files.createTempDirectory("changes");
         Path dbDir = tempDir.resolve("DB");
         Files.createDirectory(dbDir);
@@ -85,7 +111,7 @@ public class Comparer {
             SourceRepo repoDisk = loadSource(startPath, baseDir);
             Path dbDir2 = Files.createDirectory(dbDir.resolve(owner));
             Path diskDir2 = Files.createDirectory(diskDir.resolve(owner));
-            compareRepos(repoDisk, diskDir2, repoDB, dbDir2);
+            compareRepos(schema, repoDisk, diskDir2, repoDB, dbDir2);
         }
         if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
             Runtime rt = Runtime.getRuntime();
@@ -118,24 +144,36 @@ public class Comparer {
         return repo;
     }
 
-    static void compareRepos(SourceRepo repoDisk, Path dirDisk,
+    static void compareRepos(String schema, SourceRepo repoDisk, Path dirDisk,
             SourceRepo repoDB, Path dirDB) throws IOException {
-        Set<DBObject> objsDisk = repoDisk.getEntries();
+        Set<DBObject> objsDisk = repoDisk.getEntries(); // sort !
         Set<DBObject> objsDB = repoDB.getEntries();
+        
         for (DBObject dbo : objsDisk) {
             String srcDisk = repoDisk.get(dbo);
             String srcDB = repoDB.get(dbo);
             String fName = dbo.name + "-" + dbo.type + ".txt";
             if (objsDB.contains(dbo)) {
                 if (!srcDisk.equals(srcDB)) {
-                    System.out.println("different: " + dbo.type + ", " + dbo.name);
+                    System.out.println(padLeft("different: ",20, ' ') + padRight(schema,30, ' ') 
+                            + " " + padRight(dbo.type,20, ' ') + " " + dbo.name);
                     Helper.writeTextFile(dirDisk.resolve(fName), srcDisk, "UTF-8");
                     Helper.writeTextFile(dirDB.resolve(fName), srcDB, "UTF-8");
                 }
             } else {
-                System.out.println("missing in DB: " + dbo.type + ", " + dbo.name);
+                System.out.println(padLeft("missing in DB: ",20,' ') + padRight(schema,30, ' ') 
+                        + " " + padRight(dbo.type,20, ' ') + ", " + dbo.name);
                 Helper.writeTextFile(dirDisk.resolve(fName), srcDisk, "UTF-8");
             }
+        }
+        for(DBObject dbo: objsDB) {
+             if (!objsDisk.contains(dbo)) {
+                System.out.println(padLeft("missing on Disk: ",20,' ') + padRight(schema,30, ' ') 
+                        + " " + padRight(dbo.type,20, ' ') + " " + dbo.name);  
+                 String fName = dbo.name + "-" + dbo.type + ".txt";
+                 String srcDB = repoDB.get(dbo);
+                Helper.writeTextFile(dirDisk.resolve(fName), srcDB, "UTF-8");
+             }
         }
     }
 
@@ -147,7 +185,7 @@ public class Comparer {
         Files.createDirectory(dbDir);
         Path diskDir = tempDir.resolve("DISK");
         Files.createDirectory(diskDir);
-        compareRepos(repoDisk, diskDir, repoDB, dbDir);
+        compareRepos("", repoDisk, diskDir, repoDB, dbDir);
         return tempDir;
     }
 }
