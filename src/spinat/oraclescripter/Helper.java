@@ -331,5 +331,33 @@ public class Helper {
             ps.append(s);
         }
     }
+    
+    public static String toPlatFormLineEnd(String s) {
+        final String newline = System.getProperty("line.separator");
+        if (newline.length()!=2) {
+          throw new RuntimeException("aua");
+        }
+        s = s.replace("\r\n", "\n");
+        return s.replace("\n", newline);
+    }
+    
+    public static void writeTextFilePlatformLineEnd(Path file, String txt, String encoding) throws IOException {
+        if (Files.exists(file)) {
+            throw new RuntimeException("file " + file + " already exists");
+        }
+        String s = toPlatFormLineEnd(txt);
+        if (encoding.equals("german-ascii")) {
+            encoding = "ascii";
+            s = s.replace("\u00C4", "Ae").replace("\u00D6", "Oe").replace("\u00DC", "Ue")
+                    .replace("\u00E4", "ae").replace("\u00F6", "oe").replace("\u00FC", "ue")
+                    .replace("\u00DF", "ss");
+        }
+
+        try (PrintStream ps = new PrintStream(file.toFile(), encoding)) {
+            ps.append(s);
+        }
+    }
+    
+    
 
 }

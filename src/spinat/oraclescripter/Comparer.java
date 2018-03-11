@@ -6,10 +6,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
@@ -85,8 +83,11 @@ public class Comparer {
 
     // invocatiobn with a properties file
     // the required properties:
-    //  schemas: comma separated list of schemas
-    //  connection: a connection descriptor string
+    //   schemas: comma separated list of schemas
+    //   connection: a connection descriptor string
+    // per schema there must be a property 
+    //   <SCHEMA>.start which names the Sql Plus file to start which loads the objects into
+    //   the database
     static void mainFile(String fileName) throws Exception {
         Path realPath = Paths.get(fileName).toAbsolutePath();
         Properties props = Helper.loadProperties(realPath);
@@ -116,6 +117,8 @@ public class Comparer {
             Path diskDir2 = Files.createDirectory(diskDir.resolve(owner));
             compareRepos(schema, repoDisk, diskDir2, repoDB, dbDir2);
         }
+        System.out.println("--- done ---");
+        System.out.printf("changes are in folder: " + tempDir);
         if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
             Runtime rt = Runtime.getRuntime();
             Process pr = rt.exec(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
@@ -125,8 +128,6 @@ public class Comparer {
                 diskDir.toString()
             });
             pr.waitFor();
-        } else {
-            System.out.printf("changes are in folder: " + tempDir);
         }
     }
 
@@ -155,6 +156,7 @@ public class Comparer {
         all.addAll(objsDB);
         all.addAll(objsDisk);
         DBObject[] allArray = all.toArray(new DBObject[0]);
+        String encoding = System.getProperty("file.encoding");
         java.util.Arrays.sort(allArray, new Comparator<DBObject>() {
             @Override
             public int compare(DBObject o1, DBObject o2) {
@@ -175,26 +177,24 @@ public class Comparer {
                     if (!srcDisk.equals(srcDB)) {
                         System.out.println(padLeft("different: ", 20, ' ') + padRight(schema, 30, ' ')
                                 + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
-                        Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, "UTF-8");
-                        Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, "UTF-8");
+                        Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, encoding);
+                        Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
                     }
                 } else {
                     System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
                             + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
-                    Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDB, "UTF-8");
+                    Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDB, encoding);
                 }
             } else {
                 System.out.println(padLeft("missing in DB: ", 20, ' ') + padRight(schema, 30, ' ')
                         + " " + padRight(dbo.type, 20, ' ') + ", " + dbo.name);
                 String srcDisk = repoDisk.get(dbo);
-                Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, "UTF-8");
+                Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, encoding);
             }
         }
     }
 
     static Path compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
-        Set<DBObject> objsDisk = repoDisk.getEntries();
-        Set<DBObject> objsDB = repoDB.getEntries();
         Path tempDir = Files.createTempDirectory("changes");
         Path dbDir = tempDir.resolve("DB");
         Files.createDirectory(dbDir);
