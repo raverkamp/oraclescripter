@@ -99,9 +99,9 @@ public class Helper {
             for (String l = r.readLine(); l != null; l = r.readLine()) {
                 lineno++;
                 String s = l.trim();
-                // four cases 
+                // four cases
                 // a simple string => upcase
-                // a " .." strinng => extract 
+                // a " .." strinng => extract
                 // a # comment => nothing
                 // a empty line => nothing
                 if (s.length() == 0) {
@@ -223,7 +223,7 @@ public class Helper {
         }
         return l;
     }
-    
+
     static boolean deleteFile(Path p) {
         try {
             Files.delete(p);
@@ -233,7 +233,6 @@ public class Helper {
             return false;
         }
     }
-
 
     static boolean deleteThing(Path p) throws IOException {
 
@@ -294,7 +293,7 @@ public class Helper {
             throw new RuntimeException(ex);
         }
     }
-    
+
     public static java.util.Properties loadProperties(Path p) throws IOException {
         java.util.Properties props = new java.util.Properties();
         {
@@ -308,13 +307,14 @@ public class Helper {
         }
         return props;
     }
-    
+
     public static void abort(String msg) {
         System.err.println("aborting program:");
         System.err.println(msg);
+        System.err.println("use '-h' option for help");
         System.exit(1);
     }
-    
+
     public static void writeTextFile(Path file, String txt, String encoding) throws IOException {
         if (Files.exists(file)) {
             throw new RuntimeException("file " + file + " already exists");
@@ -331,16 +331,16 @@ public class Helper {
             ps.append(s);
         }
     }
-    
+
     public static String toPlatFormLineEnd(String s) {
         final String newline = System.getProperty("line.separator");
-        if (newline.length()!=2) {
-          throw new RuntimeException("aua");
+        if (newline.length() != 2) {
+            throw new RuntimeException("aua");
         }
         s = s.replace("\r\n", "\n");
         return s.replace("\n", newline);
     }
-    
+
     public static void writeTextFilePlatformLineEnd(Path file, String txt, String encoding) throws IOException {
         if (Files.exists(file)) {
             throw new RuntimeException("file " + file + " already exists");
@@ -357,7 +357,5 @@ public class Helper {
             ps.append(s);
         }
     }
-    
-    
 
 }

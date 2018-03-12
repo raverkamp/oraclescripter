@@ -135,6 +135,3 @@ Obviously the user for the given schema must be able to read the sources of all
 schemas, so either there is only one schema and the connection is for this
 schema. Otherwise the user of the connection has the SELECT ANY DICTIONARY System Privilege
 or the user has the SELECT_CATALOG_ROLE role.
-
-
- 
