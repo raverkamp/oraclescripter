@@ -8,6 +8,7 @@ public class Main {
             Comparer.mainx(args);
             return;
         }
+        
         Scripter.mainx(args);
     }
 }

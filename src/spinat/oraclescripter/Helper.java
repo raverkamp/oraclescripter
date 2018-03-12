@@ -310,7 +310,7 @@ public class Helper {
     }
     
     public static void abort(String msg) {
-        System.err.println("abort scripting:");
+        System.err.println("aborting program:");
         System.err.println(msg);
         System.exit(1);
     }

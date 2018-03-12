@@ -39,49 +39,39 @@ public class Comparer {
         b.append(s);
         return b.toString();
     }
-    
+
     // main entry point for doing compare
     public static void mainx(String[] args) throws Exception {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (SQLException e) {
-            throw new RuntimeException("can not initialize Oracle JDBC", e);
+             Helper.abort("can not initialize Oracle JDBC\n" + e.toString());
         }
         if (!args[0].equalsIgnoreCase("compare")) {
-            throw new RuntimeException("first argument must be 'compare'");
+            throw new RuntimeException("BUG: first argument must be 'compare'");
         }
         if (args.length == 2) {
             mainFile(args[1]);
         } else {
-
-            String fileName = args[1];
-            String connectDesc = args[2];
-            final Path baseDir;
-            if (args.length >= 4) {
-                baseDir = Paths.get(args[3]).toRealPath().toAbsolutePath();
-            } else {
-                baseDir = Paths.get(".").toRealPath().toAbsolutePath();
-            }
-            Path filePath = Paths.get(fileName).toAbsolutePath();
-            // use the current diretory, this is not well defefinde in Java
-
-            SourceRepo repoDisk = loadSource(filePath, baseDir);
-
-            OracleConnection c = ConnectionUtil.getConnection(connectDesc);
-
-            String schema = ConnectionUtil.connectionUser(c);
-            ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
-            conds.obj_where = "1=1";
-            ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(c, schema, false, conds);
-            SourceCodeGetter sc = new SourceCodeGetter(c, schema, false);
-            sc.load(dbObjects);
-            SourceRepo repoDB = sc.getSourceRepo();
-            Path cmpDir = compareRepos(repoDisk, repoDB);
-            System.out.println("dfferences ar in folder: " + cmpDir.toString());
+            Helper.abort("expecting two arguments for compare mode, the first must be \"compare\".\n"
+                     + "The second must be the name of a properties file.");
         }
     }
 
-    // invocatiobn with a properties file
+    private static class CompareRec {
+
+        public final String schema;
+        public final SourceRepo repoDB;
+        public final SourceRepo repoDisk;
+
+        public CompareRec(String schema, SourceRepo repoDB, SourceRepo repoDisk) {
+            this.schema = schema;
+            this.repoDB = repoDB;
+            this.repoDisk = repoDisk;
+        }
+    }
+
+    // invocation with a properties file
     // the required properties:
     //   schemas: comma separated list of schemas
     //   connection: a connection descriptor string
@@ -101,6 +91,7 @@ public class Comparer {
         Files.createDirectory(dbDir);
         Path diskDir = tempDir.resolve("DISK");
         Files.createDirectory(diskDir);
+        ArrayList<CompareRec> cmpRecs = new ArrayList<>();
         for (String schema : schema_list) {
             String owner = schema.toUpperCase(Locale.ROOT);
             ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
@@ -113,21 +104,34 @@ public class Comparer {
             Path startPath = realPath.getParent().resolve(startFile).toAbsolutePath();
             Path baseDir = startPath.getParent();
             SourceRepo repoDisk = loadSource(startPath, baseDir);
+            CompareRec cr = new CompareRec(schema, repoDB, repoDisk);
+            cmpRecs.add(cr);
+            System.out.println("loaded schema: " + schema);
+        }
+        boolean hasDifferenes = false;
+        for (CompareRec r : cmpRecs) {
+            String owner = r.schema.toUpperCase(Locale.ROOT);
             Path dbDir2 = Files.createDirectory(dbDir.resolve(owner));
             Path diskDir2 = Files.createDirectory(diskDir.resolve(owner));
-            compareRepos(schema, repoDisk, diskDir2, repoDB, dbDir2);
+            boolean x = compareRepos(r.schema, r.repoDisk, diskDir2, r.repoDB, dbDir2);
+            hasDifferenes = x || hasDifferenes;
         }
         System.out.println("--- done ---");
-        System.out.printf("changes are in folder: " + tempDir);
-        if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
-            Runtime rt = Runtime.getRuntime();
-            Process pr = rt.exec(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
-                //"/r",
-                "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
-                dbDir.toString(),
-                diskDir.toString()
-            });
-            pr.waitFor();
+        if (hasDifferenes) {
+            System.out.printf("changes are in folder: " + tempDir);
+            if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
+                Runtime rt = Runtime.getRuntime();
+                Process pr = rt.exec(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
+                    //"/r",
+                    "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
+                    dbDir.toString(),
+                    diskDir.toString()
+                });
+                pr.waitFor();
+            }
+        } else {
+            System.out.println("there are no differences");
+
         }
     }
 
@@ -148,7 +152,7 @@ public class Comparer {
         return repo;
     }
 
-    static void compareRepos(String schema, SourceRepo repoDisk, Path dirDisk,
+    static boolean compareRepos(String schema, SourceRepo repoDisk, Path dirDisk,
             SourceRepo repoDB, Path dirDB) throws IOException {
         Set<DBObject> objsDisk = repoDisk.getEntries(); // sort !
         Set<DBObject> objsDB = repoDB.getEntries();
@@ -168,6 +172,7 @@ public class Comparer {
                 }
             }
         });
+        boolean hasDifferences = false;
         for (DBObject dbo : allArray) {
             String fName = dbo.name + "-" + dbo.type + ".txt";
             if (objsDB.contains(dbo)) {
@@ -175,23 +180,27 @@ public class Comparer {
                 if (objsDisk.contains(dbo)) {
                     String srcDisk = repoDisk.get(dbo);
                     if (!srcDisk.equals(srcDB)) {
+                        hasDifferences = true;
                         System.out.println(padLeft("different: ", 20, ' ') + padRight(schema, 30, ' ')
                                 + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
                         Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, encoding);
                         Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
                     }
                 } else {
+                    hasDifferences = true;
                     System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
                             + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
                     Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDB, encoding);
                 }
             } else {
+                hasDifferences = true;
                 System.out.println(padLeft("missing in DB: ", 20, ' ') + padRight(schema, 30, ' ')
                         + " " + padRight(dbo.type, 20, ' ') + ", " + dbo.name);
                 String srcDisk = repoDisk.get(dbo);
                 Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, encoding);
             }
         }
+        return hasDifferences;
     }
 
     static Path compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
