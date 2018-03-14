@@ -11,6 +11,8 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
 import spinat.oraclescripter.SqlPlus.CodeInfo;
 import spinat.oraclescripter.SqlPlus.Snippet;
@@ -45,7 +47,7 @@ public class Comparer {
         try {
             java.sql.DriverManager.registerDriver(new oracle.jdbc.driver.OracleDriver());
         } catch (SQLException e) {
-             Helper.abort("can not initialize Oracle JDBC\n" + e.toString());
+            Helper.abort("can not initialize Oracle JDBC\n" + e.toString());
         }
         if (!args[0].equalsIgnoreCase("compare")) {
             throw new RuntimeException("BUG: first argument must be 'compare'");
@@ -54,8 +56,68 @@ public class Comparer {
             mainFile(args[1]);
         } else {
             Helper.abort("expecting two arguments for compare mode, the first must be \"compare\".\n"
-                     + "The second must be the name of a properties file.");
+                    + "The second must be the name of a properties file.");
         }
+    }
+
+    private static String stripSemicolon(String s) {
+        s = s.trim();
+        if (s.endsWith(";")) {
+            return s.substring(0, s.length() - 1);
+        } else {
+            return s;
+        }
+    }
+
+    // compare two pieces of code
+    // ignore spaces and case differences in leading create or replace ...
+    private static boolean equalCode(String what, String s1, String s2) {
+        s1 = Helper.normalizeLineEnd(s1);
+        s2 = Helper.normalizeLineEnd(s2);
+        final Pattern startPattern;
+        switch (what) {
+            case "TRIGGER":
+                startPattern = Pattern.compile("trigger\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            case "VIEW":
+                startPattern = Pattern.compile("view\\s+", Pattern.CASE_INSENSITIVE);
+                s1 = stripSemicolon(s1);
+                s2 = stripSemicolon(s2);
+                break;
+            case "TYPE":
+                startPattern = Pattern.compile("type\\s+", Pattern.CASE_INSENSITIVE);
+                s1 = stripSemicolon(s1);
+                s2 = stripSemicolon(s2);
+                break;
+            case "TYPE BODY":
+                startPattern = Pattern.compile("type\\s+body\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            case "PACKAGE":
+                startPattern = Pattern.compile("package\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            case "PACKAGE BODY":
+                startPattern = Pattern.compile("package\\s+body\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            case "PROCEDURE":
+                startPattern = Pattern.compile("procedure\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            case "FUNCTION":
+                startPattern = Pattern.compile("function\\s+", Pattern.CASE_INSENSITIVE);
+                break;
+            default:
+                return s1.equals(s2);
+        }
+
+        Matcher m1 = startPattern.matcher(s1);
+        if (m1.lookingAt()) {
+            Matcher m2 = startPattern.matcher(s2);
+            if (m2.lookingAt()) {
+                s1 = s1.substring(m1.end());
+                s2 = s2.substring(m2.end());
+                return s1.equals(s2);
+            }
+        }
+        return s1.equals(s2);
     }
 
     private static class CompareRec {
@@ -84,6 +146,9 @@ public class Comparer {
         String schemas = Helper.getProp(props, "schemas");
         String connectionDesc = Helper.getProp(props, "connection");
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
+        if (!ConnectionUtil.hasDBAViews(connection)) {
+            Helper.abort("the connection needs access to dba views, the view like dba_objects and etc.");
+        }
         String[] schema_list = schemas.split(",");
         // create the temporary directories for comparision
         Path tempDir = Files.createTempDirectory("changes");
@@ -179,7 +244,7 @@ public class Comparer {
                 String srcDB = repoDB.get(dbo);
                 if (objsDisk.contains(dbo)) {
                     String srcDisk = repoDisk.get(dbo);
-                    if (! Helper.compareIgnoreTrailingSpace(srcDisk, srcDB)) {
+                    if (!equalCode(dbo.type, srcDisk, srcDB)) {
                         hasDifferences = true;
                         System.out.println(padLeft("different: ", 20, ' ') + padRight(schema, 30, ' ')
                                 + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);

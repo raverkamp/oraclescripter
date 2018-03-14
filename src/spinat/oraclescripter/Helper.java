@@ -334,37 +334,28 @@ public class Helper {
 
     public static String toPlatFormLineEnd(String s) {
         final String newline = System.getProperty("line.separator");
-        if (newline.length() != 2) {
+        if (newline.length() >= 2) {
             throw new RuntimeException("aua");
         }
         s = s.replace("\r\n", "\n");
         return s.replace("\n", newline);
     }
-    
+
     // there are problems with SQL Developer
     // if load code inside a code editor in the GUI then trailing spaces at the end
-    // of a lien are kept
+    // of a line are kept
     // if the code is loaded via the sqlplus simulation then traling whitespace
     // is discarded
     // we ignore the problems caused by multiline strings
-    public static boolean compareIgnoreTrailingSpace(String s1, String s2) {
-        s1 = s1.replace("\r\n", "\n");
-        s2 = s2.replace("\r\n", "\n");
+    public static String normalizeLineEnd(String s) {
+        s = s.replace("\r\n", "\n");
         while (true) {
-            int k = s1.length();
-            s1 = s1.replace(" \n", "\n");
-            if (k  == s1.length()) {
-                break;
+            int k = s.length();
+            s = s.replace(" \n", "\n");
+            if (k == s.length()) {
+                return s;
             }
         }
-        while (true) {
-            int k = s2.length();
-            s2 = s2.replace(" \n", "\n");
-            if (k  == s2.length()) {
-                break;
-            }
-        }
-        return s1.equals(s2);
     }
 
     public static void writeTextFilePlatformLineEnd(Path file, String txt, String encoding) throws IOException {
