@@ -334,8 +334,8 @@ public class Helper {
 
     public static String toPlatFormLineEnd(String s) {
         final String newline = System.getProperty("line.separator");
-        if (newline.length() >= 2) {
-            throw new RuntimeException("aua");
+        if (newline.length() > 2) {
+            throw new RuntimeException("newline length=" + newline.length());
         }
         s = s.replace("\r\n", "\n");
         return s.replace("\n", newline);
