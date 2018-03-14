@@ -179,7 +179,7 @@ public class Comparer {
                 String srcDB = repoDB.get(dbo);
                 if (objsDisk.contains(dbo)) {
                     String srcDisk = repoDisk.get(dbo);
-                    if (!srcDisk.equals(srcDB)) {
+                    if (! Helper.compareIgnoreTrailingSpace(srcDisk, srcDB)) {
                         hasDifferences = true;
                         System.out.println(padLeft("different: ", 20, ' ') + padRight(schema, 30, ' ')
                                 + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);

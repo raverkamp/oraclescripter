@@ -219,7 +219,7 @@ public class Scripter {
                         }
                     }
                 } // the conenction is closed
-                
+
                 ExecutorService pool = Executors.newFixedThreadPool(schema_list.length);
                 ArrayList<FutureTask<Object>> tasks = new ArrayList<>();
                 for (int i = 0; i < schema_list.length; i++) {
@@ -376,7 +376,7 @@ public class Scripter {
         for (Path p : allobjects) {
             Path rel = baseDir.relativize(p);
             b.append("@@").append(rel.toString());
-            b.append("\n");  
+            b.append("\n");
         }
 
         Helper.writeTextFile(allObjectsPath, b.toString(), encoding);
