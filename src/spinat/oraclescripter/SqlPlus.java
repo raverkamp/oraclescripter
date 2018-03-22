@@ -15,29 +15,29 @@ import java.util.regex.Pattern;
 public class SqlPlus {
 
     static Pattern rg_start = Pattern.compile("\\s*(start\\s|(@@)|@)", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_code = 
-            Pattern.compile("\\s*create\\s+((procedure)|(package)|(trigger)|(type)|(function))", 
-                        Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_or_replace_code = 
-            Pattern.compile("\\s*create\\s+or\\s+replace\\s+((procedure)|(package)|(trigger)|(type)|(function))",
+    static Pattern rg_create_code
+            = Pattern.compile("\\s*create\\s+((procedure)|(package)|(trigger)|(type)|(function))",
+                    Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_or_replace_code
+            = Pattern.compile("\\s*create\\s+or\\s+replace\\s+((procedure)|(package)|(trigger)|(type)|(function))",
                     Pattern.CASE_INSENSITIVE);
     static Pattern rg_ws = Pattern.compile("\\s+");
 
-    static Pattern rg_create_view = 
-            Pattern.compile("\\s*create\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_or_replace_view = 
-            Pattern.compile("\\s*create\\s+or\\s+replace\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
-    
-    static Pattern rg_create_synonym =
-            Pattern.compile("\\s*create\\s+synonym", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_or_replace_synonym =
-            Pattern.compile("\\s*create\\s+or\\s+replace\\s+synonym", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_sequence =
-            Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
-    
+    static Pattern rg_create_view
+            = Pattern.compile("\\s*create\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_or_replace_view
+            = Pattern.compile("\\s*create\\s+or\\s+replace\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
+
+    static Pattern rg_create_synonym
+            = Pattern.compile("\\s*create\\s+synonym", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_or_replace_synonym
+            = Pattern.compile("\\s*create\\s+or\\s+replace\\s+synonym", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_sequence
+            = Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
+
     // CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED bla as ..
-    static Pattern rg_java_etc = 
-            Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)\\s+java\\s+source\\s+named", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_java_etc
+            = Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)\\s+java\\s+source\\s+named", Pattern.CASE_INSENSITIVE);
 
     static Pattern rg_string = Pattern.compile("'(''|[^'])*'");
     static Pattern rg_qident = Pattern.compile("\\\"[^\\\"]*\\\"");
@@ -47,12 +47,14 @@ public class SqlPlus {
 
     static Pattern rg_semi = Pattern.compile(";");
 
-    static Pattern rg_star_comment = Pattern.compile("/\\*((\\*[^/])|[^\\*])*\\*/");
+    static Pattern rg_star_comment = Pattern.compile("/\\*([^\\*]|(\\*[^/]))*\\*/");
     static Pattern rg_arg1 = Pattern.compile("\"([^\"]|\"\")*\"");
     static Pattern rg_arg2 = Pattern.compile("'([^']|'')*'");
     static Pattern rg_arg3 = Pattern.compile("[^ ]+");
 
     static Pattern rg_comment = Pattern.compile("\\s*--", Pattern.CASE_INSENSITIVE);
+    
+    static Pattern rg_comment_in_sql = Pattern.compile("--[^\\n]*\\n", Pattern.CASE_INSENSITIVE);
 
     public static class Snippet {
 
@@ -84,7 +86,7 @@ public class SqlPlus {
         public final BufferedReader reader;
         public int lineNo;
 
-        public FileFrame(Path filePath,  BufferedReader reader,
+        public FileFrame(Path filePath, BufferedReader reader,
                 int lineNo) {
             this.filePath = filePath;
             this.reader = reader;
@@ -93,7 +95,8 @@ public class SqlPlus {
 
     }
 
-    static int match(Pattern p, String s, int pos) {
+    // check if pattern p matches s starting at pos, return next position after pattern
+    static int findPatternEnd(Pattern p, String s, int pos) {
         String s2 = s.substring(pos);
         Matcher m = p.matcher(s2);
         if (m.lookingAt()) {
@@ -158,29 +161,51 @@ public class SqlPlus {
             b.append("\n").append(line);
         }
     }
-    
 
     String eatSQL(String firstLine) throws Exception {
-        Pattern[] to_skip = new Pattern[]{rg_string, rg_star_comment, rg_comment, rg_qident, rg_ignore};
+        Pattern[] to_skip = new Pattern[]{rg_string, rg_comment_in_sql, rg_qident, rg_ignore};
         // (find the ";"!, but respect comments)
         String res = firstLine;
         int pos = 0;
 
         while (true) {
             boolean hit = false;
-            for (Pattern p : to_skip) {
-                int k = match(p, res, pos);
-                if (k >= 0) {
-                    if (k == pos) {
-                        throw new Error("bug: regular expression matching empyt string");
+            // rg_star_comment gives a stackoverflow if the the comm3ent is to large
+            // we sue another method
+            if (res.startsWith("/*", pos)) {
+                pos = pos + 2;
+                while (true) {
+                    int o = res.indexOf("*/", pos);
+                    if (o >= 0) {
+                        pos = o + 2;
+                        hit = true;
+                        break;
                     }
-                    pos = k;
-                    hit = true;
-                    break;
+                    String nextLine = this.readLine();
+                    if (nextLine == null) {
+                        throw new Exception("unexpected end in sql");
+                    }
+                    if (nextLine.trim().equals("/")) {
+                        return res;
+                    }
+                    res = res + "\n" + nextLine;
+                }
+            } else {
+                // the patterns exclude each others
+                for (Pattern p : to_skip) {
+                    int k = findPatternEnd(p, res, pos);
+                    if (k >= 0) {
+                        if (k == pos) {
+                            throw new Error("bug: regular expression matching empyt string");
+                        }
+                        pos = k;
+                        hit = true;
+                        break;
+                    }
                 }
             }
             if (!hit) {
-                if (match(rg_semi, res, pos) >= 0) {
+                if (findPatternEnd(rg_semi, res, pos) >= 0) {
                     return res;
                 }
                 String nextLine = this.readLine();
@@ -224,14 +249,14 @@ public class SqlPlus {
             String s = this.eatSQL(line);
             return new String2("code", s);
         }
-        
+
         if (rg_create_or_replace_synonym.matcher(line).lookingAt()
-                ||rg_create_synonym.matcher(line).lookingAt()
-                ||rg_create_sequence.matcher(line).lookingAt()) {
+                || rg_create_synonym.matcher(line).lookingAt()
+                || rg_create_sequence.matcher(line).lookingAt()) {
             String s = this.eatSQL(line);
             return new String2("other", s);
         }
-        if(rg_java_etc.matcher(line).lookingAt()) {
+        if (rg_java_etc.matcher(line).lookingAt()) {
             String s = this.readTillSlash(line);
             return new String2("java", s);
         }
@@ -306,7 +331,7 @@ public class SqlPlus {
         if (dc.cmd.compareToIgnoreCase("START") == 0 || dc.cmd.equals("@")) {
             newFilePath = this.baseDir.resolve(dc.fileName).toAbsolutePath();
         } else {
-            
+
             newFilePath = this.frames.get(0).filePath.getParent().resolve(dc.fileName).toAbsolutePath();
         }
         FileFrame ff = this.openFile(newFilePath);
@@ -355,9 +380,9 @@ public class SqlPlus {
                     }
                 }
             }
-        } catch (Exception e) {
-            System.err.println("AUA " + this.frames.get(0).filePath + " at lineno=" + this.frames.get(0).lineNo);
-            throw e;
+        } catch (Throwable e) {
+            String msg = "failure when parsing at: " + this.frames.get(0).filePath + " at lineno=" + this.frames.get(0).lineNo;
+            throw new RuntimeException(msg, e);
         }
     }
 
@@ -412,7 +437,7 @@ public class SqlPlus {
         int len = -1;
         String best = null;
         for (String k : m.keySet()) {
-            int x = match(m.get(k), s, 0);
+            int x = findPatternEnd(m.get(k), s, 0);
             if (x > len) {
                 len = x;
                 best = k;
@@ -455,15 +480,14 @@ public class SqlPlus {
             what = si.s;
             rest = prgText.substring(si.i).trim();
         }
-        
 
         final String part1;
-        int k = match(rg_ident, rest, 0);
+        int k = findPatternEnd(rg_ident, rest, 0);
         if (k >= 0) {
             part1 = rest.substring(0, k).toUpperCase();
             rest = rest.substring(k);
         } else {
-            int k2 = match(rg_qident, rest, 0);
+            int k2 = findPatternEnd(rg_qident, rest, 0);
             if (k2 >= 0) {
                 part1 = rest.substring(1, k2 - 1);
                 rest = rest.substring(k2);
@@ -475,11 +499,11 @@ public class SqlPlus {
         final String part2;
         if (rest.startsWith(".")) {
             rest = rest.substring(1);
-            int k2 = match(rg_ident, rest, 0);
+            int k2 = findPatternEnd(rg_ident, rest, 0);
             if (k2 >= 0) {
                 part2 = rest.substring(0, k2).toUpperCase();
             } else {
-                int k3 = match(rg_qident, rest, 0);
+                int k3 = findPatternEnd(rg_qident, rest, 0);
                 if (k3 >= 0) {
                     part2 = rest.substring(1, k3 - 1);
                 } else {
