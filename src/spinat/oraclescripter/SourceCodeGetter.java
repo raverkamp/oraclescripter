@@ -38,8 +38,8 @@ public class SourceCodeGetter {
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
             ps.setFetchSize(10000);
             String[] arg = objectList.toArray(new String[0]);
-            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setARRAY(1, a);
+            java.sql.Array a = (java.sql.Array) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
             ps.setString(2, this.owner);
             String key = null;
             DBObject currDbo = null;
@@ -89,8 +89,8 @@ public class SourceCodeGetter {
                         + " and owner = ?")) {
             ps.setFetchSize(10000);
             String[] arg = triggers.toArray(new String[0]);
-            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setARRAY(1, a);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
             ps.setString(2, this.owner);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -139,8 +139,8 @@ public class SourceCodeGetter {
                 + "and owner = ?")) {
             ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
-            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setARRAY(1, a);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
             ps.setString(2, this.owner);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -164,8 +164,8 @@ public class SourceCodeGetter {
                 + " order by table_name,column_id")) {
             ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
-            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setARRAY(1, a);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
             ps.setString(2, this.owner);
             String old_table_name = null;
             StringBuilder b = new StringBuilder();
@@ -225,8 +225,8 @@ public class SourceCodeGetter {
                 + " order by table_name,column_id")) {
             ps.setFetchSize(10000);
             String[] arg = views.toArray(new String[0]);
-            oracle.sql.ARRAY a = (oracle.sql.ARRAY) con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setARRAY(1, a);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
             ps.setString(2, this.owner);
             String old_table_name = null;
             StringBuilder b = new StringBuilder();
