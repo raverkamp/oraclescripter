@@ -39,7 +39,8 @@ public class Scripter {
                 "procedure", "prc",
                 "function", "fun",
                 "view", "vw",
-                "trigger", "trg"});
+                "trigger", "trg",
+                "java_source", "jso"});
 
     private static Path saveObject(Path baseDir, java.util.Properties props,
             String objectType, String objectName, String src)
@@ -54,12 +55,14 @@ public class Scripter {
             type = "type_body";
         } else if (objectType.equals("TYPE SPEC")) {
             type = "type_spec";
+        } else if (objectType.equals("JAVA SOURCE")) {
+            type = "java_source";
         } else {
             type = objectType.toLowerCase();
         }
         String dir = props.getProperty("dir." + type, "");
         String suffix = props.getProperty("suffix." + type, suffixMap.get(type));
-        String filename = objectName.toLowerCase() + "." + suffix;
+        String filename = objectName.toLowerCase().replace("/", "-") + "." + suffix;
         final Path fileRelative;
         if (dir.equals("")) {
             fileRelative = Paths.get(filename);
@@ -101,11 +104,11 @@ public class Scripter {
     }
 
     static String appendSlash(String s) {
-        int l = s.length()-1;
-        while(l>= 0 && Character.isWhitespace(s.charAt(l))) {
+        int l = s.length() - 1;
+        while (l >= 0 && Character.isWhitespace(s.charAt(l))) {
             l--;
         }
-        s = s.substring(0,l+1);
+        s = s.substring(0, l + 1);
         return s + "\n/\n";
     }
 

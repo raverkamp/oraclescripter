@@ -8,7 +8,7 @@ import oracle.jdbc.OraclePreparedStatement;
 public class SourceCodeGetter {
 
     private static final String[] source_stuff = new String[]{
-        "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE"};
+        "PACKAGE", "PACKAGE BODY", "TYPE", "TYPE BODY", "FUNCTION", "PROCEDURE", "JAVA SOURCE"};
 
     private final OracleConnection con;
     private final String owner;
@@ -106,7 +106,7 @@ public class SourceCodeGetter {
                     String description = rs.getString(11);
                     String action_type = rs.getString(12);
                     String trigger_body = rs.getString(13);
-                //String owner = rs.getString(14);
+                    //String owner = rs.getString(14);
 
                     // column_name != null is not implemented,
                     // I think this can be used with inline tables
@@ -148,13 +148,13 @@ public class SourceCodeGetter {
                     String txt = rs.getString(2);
                     this.view_sources.put(name, txt);
                     this.source_repo.add(new DBObject("VIEW", name), "view " + Helper.maybeOracleQuote(name)
-                + " (" + view_tab_columns.get(name) + ") as \n" + txt);
+                            + " (" + view_tab_columns.get(name) + ") as \n" + txt);
                 }
             }
         }
 
     }
-    
+
     void loadViewColumns(ArrayList<String> views) throws SQLException {
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
@@ -271,7 +271,11 @@ public class SourceCodeGetter {
         if (s == null || s.trim().isEmpty()) {
             return null;
         }
-        return "create or replace " + s;
+        if (objectType.equals("JAVA SOURCE")) {
+            return "create or replace java source \"" + objectName + "\" as \n" + s;
+        } else {
+            return "create or replace " + s;
+        }
     }
 
     private String getViewSourceCode(String view) {
