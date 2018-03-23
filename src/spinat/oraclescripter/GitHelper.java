@@ -34,7 +34,7 @@ public class GitHelper {
             rb.setMustExist(true);
             rb.findGitDir(f);
             if (rb.getGitDir() == null) {
-                 throw new RuntimeException("no repo found at: " + dir);
+                throw new RuntimeException("no repo found at: " + dir);
             }
             Repository r = rb.build();
             Git g = new Git(r);

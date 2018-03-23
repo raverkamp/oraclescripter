@@ -91,8 +91,8 @@ public abstract class OraConnectionDesc {
      */
     public static OraConnectionDesc fromString(String conStr) throws ParseException {
         String errm = "expecting a conenction string in the form \"user[/pwd]@tnsname\""
-                    + " or \"user[/pwd]@host:port:service\""
-                    + " or \"user[/pwd]@//host:port/service\"";
+                + " or \"user[/pwd]@host:port:service\""
+                + " or \"user[/pwd]@//host:port/service\"";
         final int p = conStr.indexOf("@");
         if (p <= 0) {
             throw new ParseException(errm, 0);

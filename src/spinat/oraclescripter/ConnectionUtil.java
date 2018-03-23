@@ -9,12 +9,12 @@ import java.util.ArrayList;
 import oracle.jdbc.OracleConnection;
 
 final class ConnectionUtil {
-    
+
     // only static methods, do not create an obejct not even in by a static method
     private ConnectionUtil() {
         throw new Error();
     }
-    
+
     public static class ConnectionAndDesc {
 
         public final OracleConnection connection;
@@ -26,7 +26,7 @@ final class ConnectionUtil {
         }
 
     }
-    
+
     static ConnectionAndDesc getConnectionAndDesc(String desc) throws ParseException {
         spinat.oraclelogin.OraConnectionDesc cd = spinat.oraclelogin.OraConnectionDesc.fromString(desc);
         if (!cd.hasPwd()) {
@@ -45,12 +45,12 @@ final class ConnectionUtil {
             throw new Error("");
         }
     }
-    
+
     static OracleConnection getConnection(String desc) throws ParseException {
         return getConnectionAndDesc(desc).connection;
     }
-    
-      static boolean hasDBAViews(Connection c) throws SQLException {
+
+    static boolean hasDBAViews(Connection c) throws SQLException {
         // if we have access to dba_objects we assume that we have access to the rest as well
         // we get an exception if we do not have access
         //  but we check that the exception has nothing to do with the connection
@@ -79,25 +79,26 @@ final class ConnectionUtil {
             }
         }
     }
-    
+
     public static String connectionUser(OracleConnection c) throws SQLException {
         //java.lang.AbstractMethodError, heh?
-       // return c.getSchema();
-       return c.getUserName();
+        // return c.getSchema();
+        return c.getUserName();
     }
-    
+
     public static class ObjectCond {
+
         public String objs = null;
         public String obj_where = null;
         public String obj_file = null;
     }
-    
-      // return the list of objects to script, this list is sorted!
+
+    // return the list of objects to script, this list is sorted!
     public static ArrayList<DBObject> getDBObjects(
-            Connection c, 
-            String owner, 
-            boolean useDBAViews, 
-            ObjectCond cond) 
+            Connection c,
+            String owner,
+            boolean useDBAViews,
+            ObjectCond cond)
             throws SQLException {
         String objs = cond.objs;
         String obj_where = cond.obj_where;
@@ -145,6 +146,5 @@ final class ConnectionUtil {
             }
         }
     }
-
 
 }

@@ -239,7 +239,7 @@ public class Comparer {
         });
         boolean hasDifferences = false;
         for (DBObject dbo : allArray) {
-            String fName = dbo.name + "-" + dbo.type + ".txt";
+            String fName = dbo.name.toLowerCase().replace("/", "-") + "-" + dbo.type + ".txt";
             if (objsDB.contains(dbo)) {
                 String srcDB = repoDB.get(dbo);
                 if (objsDisk.contains(dbo)) {

@@ -37,7 +37,7 @@ public class SqlPlus {
 
     // CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED bla as ..
     static Pattern rg_java_etc
-            = Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)\\s+java\\s+source\\s+named", Pattern.CASE_INSENSITIVE);
+            = Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)?\\s+java\\s+source", Pattern.CASE_INSENSITIVE);
 
     static Pattern rg_string = Pattern.compile("'(''|[^'])*'");
     static Pattern rg_qident = Pattern.compile("\\\"[^\\\"]*\\\"");
@@ -53,7 +53,7 @@ public class SqlPlus {
     static Pattern rg_arg3 = Pattern.compile("[^ ]+");
 
     static Pattern rg_comment = Pattern.compile("\\s*--", Pattern.CASE_INSENSITIVE);
-    
+
     static Pattern rg_comment_in_sql = Pattern.compile("--[^\\n]*\\n", Pattern.CASE_INSENSITIVE);
 
     public static class Snippet {
@@ -258,7 +258,7 @@ public class SqlPlus {
         }
         if (rg_java_etc.matcher(line).lookingAt()) {
             String s = this.readTillSlash(line);
-            return new String2("java", s);
+            return new String2("code", s);
         }
         throw new Exception("can not identify line: " + line);
     }
@@ -461,6 +461,17 @@ public class SqlPlus {
         codes.put("TRIGGER", Pattern.compile("trigger", Pattern.CASE_INSENSITIVE));
         codes.put("VIEW", Pattern.compile("view", Pattern.CASE_INSENSITIVE));
         codes.put("FORCE VIEW", Pattern.compile("force\\s+view", Pattern.CASE_INSENSITIVE));
+        codes.put("JAVA SOURCE", Pattern.compile("java\\s+source\\s+named", Pattern.CASE_INSENSITIVE));
+    }
+
+    private static String stripAsorIs(String s) {
+        Pattern asOrIs = Pattern.compile("\\s*(as|is)\\s*", Pattern.CASE_INSENSITIVE);
+        Matcher m = asOrIs.matcher(s);
+        if (m.lookingAt()) {
+            return s.substring(m.end());
+        } else {
+            return s;
+        }
     }
 
     static CodeInfo analyzeCode(String text) throws Exception {
@@ -481,7 +492,10 @@ public class SqlPlus {
             rest = prgText.substring(si.i).trim();
         }
 
-        final String part1;
+        // craete or replac package|procedure is cut off
+        // now try to find the name, the name might include the owner and 
+        // both identifiers might be quoted, i.e. owner.object or just object
+        final String part1; // the first identifier
         int k = findPatternEnd(rg_ident, rest, 0);
         if (k >= 0) {
             part1 = rest.substring(0, k).toUpperCase();
@@ -496,22 +510,27 @@ public class SqlPlus {
             }
         }
         rest = rest.trim();
-        final String part2;
+        final String part2; // the secon identifierr
         if (rest.startsWith(".")) {
             rest = rest.substring(1);
             int k2 = findPatternEnd(rg_ident, rest, 0);
             if (k2 >= 0) {
                 part2 = rest.substring(0, k2).toUpperCase();
+                rest = rest.substring(k2);
             } else {
                 int k3 = findPatternEnd(rg_qident, rest, 0);
                 if (k3 >= 0) {
                     part2 = rest.substring(1, k3 - 1);
+                    rest = rest.substring(k3);
                 } else {
                     throw new Exception("can not parse ident");
                 }
             }
         } else {
             part2 = null;
+        }
+        if (what.equals("JAVA SOURCE")) {
+            prgText = stripAsorIs(rest);
         }
         if (part2 == null) {
             return new CodeInfo(what, part1, null, prgText);
