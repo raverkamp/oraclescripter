@@ -11,6 +11,8 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
@@ -105,17 +107,14 @@ public class Comparer {
                 startPattern = Pattern.compile("function\\s+", Pattern.CASE_INSENSITIVE);
                 break;
             default:
-                return s1.equals(s2);
+                startPattern = Pattern.compile("\\s*", Pattern.CASE_INSENSITIVE);
         }
 
         Matcher m1 = startPattern.matcher(s1);
-        if (m1.lookingAt()) {
-            Matcher m2 = startPattern.matcher(s2);
-            if (m2.lookingAt()) {
-                s1 = s1.substring(m1.end());
-                s2 = s2.substring(m2.end());
-                return s1.equals(s2);
-            }
+        Matcher m2 = startPattern.matcher(s2);
+        if (m1.lookingAt() && m2.lookingAt()) {
+            s1 = s1.substring(m1.end());
+            s2 = s2.substring(m2.end());
         }
         return s1.equals(s2);
     }
