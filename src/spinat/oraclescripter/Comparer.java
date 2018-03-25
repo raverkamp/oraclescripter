@@ -11,8 +11,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
@@ -184,13 +182,13 @@ public class Comparer {
         if (hasDifferenes) {
             System.out.printf("changes are in folder: " + tempDir);
             if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
-                Runtime rt = Runtime.getRuntime();
-                Process pr = rt.exec(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
+                ProcessBuilder pb = new ProcessBuilder(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
                     //"/r",
                     "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
-                    dbDir.toString(),
-                    diskDir.toString()
-                });
+                    "DB",
+                    "DISK"                });
+                pb.directory(tempDir.toFile());
+                Process pr = pb.start();
                 pr.waitFor();
             }
         } else {
@@ -254,7 +252,7 @@ public class Comparer {
                     hasDifferences = true;
                     System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
                             + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
-                    Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDB, encoding);
+                    Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
                 }
             } else {
                 hasDifferences = true;
