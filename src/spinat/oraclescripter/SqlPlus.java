@@ -401,7 +401,7 @@ public class SqlPlus {
         }
     }
 
-    static Pattern rg_create_or_replace = Pattern.compile("\\s*create\\s+or\\s+replace\\s+", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_or_replace = Pattern.compile("\\s*create\\s+or\\s+replace\\s+(and\\s+compile\\s+)?", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create = Pattern.compile("\\s*create\\s", Pattern.CASE_INSENSITIVE);
 
     static String skipCreateEtc(String s) throws Exception {
