@@ -257,7 +257,7 @@ public class Comparer {
             } else {
                 hasDifferences = true;
                 System.out.println(padLeft("missing in DB: ", 20, ' ') + padRight(schema, 30, ' ')
-                        + " " + padRight(dbo.type, 20, ' ') + ", " + dbo.name);
+                        + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
                 String srcDisk = repoDisk.get(dbo);
                 Helper.writeTextFilePlatformLineEnd(dirDisk.resolve(fName), srcDisk, encoding);
             }
