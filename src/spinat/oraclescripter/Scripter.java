@@ -40,7 +40,7 @@ public class Scripter {
                 "function", "fun",
                 "view", "vw",
                 "trigger", "trg",
-                "java_source", "jso"});
+                "java_source", "java"});
 
     private static Path saveObject(Path baseDir, java.util.Properties props,
             String objectType, String objectName, String src)
