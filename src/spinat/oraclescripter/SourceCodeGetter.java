@@ -272,7 +272,7 @@ public class SourceCodeGetter {
             return null;
         }
         if (objectType.equals("JAVA SOURCE")) {
-            return "create or replace java source named \"" + objectName + "\" as \n" + s;
+            return "create or replace and compile java source named \"" + objectName + "\" as \n" + s;
         } else {
             return "create or replace " + s;
         }
