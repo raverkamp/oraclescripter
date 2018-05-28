@@ -142,6 +142,7 @@ public class Comparer {
         Properties props = Helper.loadProperties(realPath);
         String schemas = Helper.getProp(props, "schemas");
         String connectionDesc = Helper.getProp(props, "connection");
+        boolean ignoreDBOnly = Helper.getPropBool(props, "ignoredbonly", false);
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
         if (!ConnectionUtil.hasDBAViews(connection)) {
             Helper.abort("the connection needs access to dba views, the view like dba_objects and etc.");
@@ -175,7 +176,7 @@ public class Comparer {
             String owner = r.schema.toUpperCase(Locale.ROOT);
             Path dbDir2 = Files.createDirectory(dbDir.resolve(owner));
             Path diskDir2 = Files.createDirectory(diskDir.resolve(owner));
-            boolean x = compareRepos(r.schema, r.repoDisk, diskDir2, r.repoDB, dbDir2);
+            boolean x = compareRepos(r.schema, r.repoDisk, diskDir2, r.repoDB, dbDir2, ignoreDBOnly);
             hasDifferenes = x || hasDifferenes;
         }
         System.out.println("--- done ---");
@@ -186,7 +187,7 @@ public class Comparer {
                     //"/r",
                     "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
                     "DB",
-                    "DISK"                });
+                    "DISK"});
                 pb.directory(tempDir.toFile());
                 Process pr = pb.start();
                 pr.waitFor();
@@ -214,8 +215,13 @@ public class Comparer {
         return repo;
     }
 
-    static boolean compareRepos(String schema, SourceRepo repoDisk, Path dirDisk,
-            SourceRepo repoDB, Path dirDB) throws IOException {
+    static boolean compareRepos(
+            String schema,
+            SourceRepo repoDisk,
+            Path dirDisk,
+            SourceRepo repoDB,
+            Path dirDB,
+            boolean ignoredbonly) throws IOException {
         Set<DBObject> objsDisk = repoDisk.getEntries(); // sort !
         Set<DBObject> objsDB = repoDB.getEntries();
         Set<DBObject> all = new HashSet<>();
@@ -249,10 +255,13 @@ public class Comparer {
                         Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
                     }
                 } else {
-                    hasDifferences = true;
-                    System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
-                            + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
-                    Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
+                    // object is not on disc
+                    if (!ignoredbonly) {
+                        hasDifferences = true;
+                        System.out.println(padLeft("missing on Disk: ", 20, ' ') + padRight(schema, 30, ' ')
+                                + " " + padRight(dbo.type, 20, ' ') + " " + dbo.name);
+                        Helper.writeTextFilePlatformLineEnd(dirDB.resolve(fName), srcDB, encoding);
+                    }
                 }
             } else {
                 hasDifferences = true;
@@ -263,15 +272,5 @@ public class Comparer {
             }
         }
         return hasDifferences;
-    }
-
-    static Path compareRepos(SourceRepo repoDisk, SourceRepo repoDB) throws Exception {
-        Path tempDir = Files.createTempDirectory("changes");
-        Path dbDir = tempDir.resolve("DB");
-        Files.createDirectory(dbDir);
-        Path diskDir = tempDir.resolve("DISK");
-        Files.createDirectory(diskDir);
-        compareRepos("", repoDisk, diskDir, repoDB, dbDir);
-        return tempDir;
     }
 }
