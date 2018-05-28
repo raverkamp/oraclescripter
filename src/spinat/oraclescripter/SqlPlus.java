@@ -30,9 +30,9 @@ public class SqlPlus {
             = Pattern.compile("\\s*create\\s+or\\s+replace\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
 
     static Pattern rg_create_synonym
-            = Pattern.compile("\\s*create\\s+synonym", Pattern.CASE_INSENSITIVE);
+            = Pattern.compile("\\s*create\\s+(public\\s+)?synonym", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_or_replace_synonym
-            = Pattern.compile("\\s*create\\s+or\\s+replace\\s+synonym", Pattern.CASE_INSENSITIVE);
+            = Pattern.compile("\\s*create\\s+or\\s+replace\\s+(public\\s+)?synonym", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_sequence
             = Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
     static Pattern rg_comment_on = Pattern.compile("\\s*comment\\s+on\\s+", Pattern.CASE_INSENSITIVE);
@@ -130,12 +130,12 @@ public class SqlPlus {
     FileFrame openFile(Path path) throws Exception {
         if (Files.exists(path)) {
             BufferedReader reader = new BufferedReader(new FileReader(path.toFile()));
-            return new FileFrame(path, reader, 0);
+            return new FileFrame(path, reader, 1);
         } else {
             Path path2 = Paths.get(path.toAbsolutePath().toString() + ".sql");
             if (Files.exists(path2)) {
                 BufferedReader reader = new BufferedReader(new FileReader(path2.toFile()));
-                return new FileFrame(path2, reader, 0);
+                return new FileFrame(path2, reader, 1);
             }
         }
         throw new Exception("file not found: " + path);
@@ -365,7 +365,7 @@ public class SqlPlus {
         FileFrame ff = this.openFile(this.startFileName);
         this.frames.add(0, ff);
         ArrayList<Snippet> res = new ArrayList<>();
-        int currentLineno = -1;
+        int currentLineno;
         try {
             while (true) {
                 currentLineno = this.frames.get(0).lineNo;
