@@ -1,5 +1,6 @@
 package spinat.oraclescripter;
 
+import spinat.sqlplus.SqlPlus;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,8 +15,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
-import spinat.oraclescripter.SqlPlus.CodeInfo;
-import spinat.oraclescripter.SqlPlus.Snippet;
+import spinat.sqlplus.SqlPlus.CodeInfo;
+import spinat.sqlplus.SqlPlus.Snippet;
 
 public class Comparer {
 

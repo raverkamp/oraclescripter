@@ -1,4 +1,4 @@
-package spinat.oraclescripter;
+package spinat.sqlplus;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -359,7 +359,7 @@ public class SqlPlus {
         this.frames.remove(0);
     }
 
-    ArrayList<Snippet> process() throws Exception {
+    public ArrayList<Snippet> process() throws Exception {
         FileFrame ff = this.openFile(this.startFileName);
         this.frames.add(0, ff);
         ArrayList<Snippet> res = new ArrayList<>();
@@ -395,7 +395,7 @@ public class SqlPlus {
         }
     }
 
-    static class CodeInfo {
+    public static class CodeInfo {
 
         public final String what;
         public final String name;
@@ -483,7 +483,7 @@ public class SqlPlus {
         }
     }
 
-    static CodeInfo analyzeCode(String text) throws Exception {
+    public static CodeInfo analyzeCode(String text) throws Exception {
 
         String prgText = skipCreateEtc(text);
         StringInt si = bestMatch(prgText, codes);
