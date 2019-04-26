@@ -23,7 +23,6 @@ public class SqlPlus {
                     Pattern.CASE_INSENSITIVE);
     static Pattern rg_ws = Pattern.compile("\\s+");
 
-
     static Pattern rg_create_view
             = Pattern.compile("\\s*create\\s+(force\\s+)?view", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_or_replace_view
@@ -39,7 +38,7 @@ public class SqlPlus {
     static Pattern rg_create_table = Pattern.compile("\\s*create\\s+table\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_index = Pattern.compile("\\s*create\\s+index\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_alter_table = Pattern.compile("\\s*alter\\s+table\\s+", Pattern.CASE_INSENSITIVE);
-    
+
     // CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED bla as ..
     static Pattern rg_java_etc
             = Pattern.compile("\\s*create(\\s+or\\s+replace)?(\\s+and\\s+compile)?\\s+java\\s+source", Pattern.CASE_INSENSITIVE);
@@ -256,13 +255,12 @@ public class SqlPlus {
         }
 
         if (rg_create_or_replace_synonym.matcher(line).lookingAt()
-
                 || rg_create_synonym.matcher(line).lookingAt()
-                || rg_create_sequence.matcher(line).lookingAt()                 
-                ||rg_comment_on.matcher(line).lookingAt()
-                ||rg_create_table.matcher(line).lookingAt()
-                ||rg_create_index.matcher(line).lookingAt()
-                ||rg_alter_table.matcher(line).lookingAt()) {
+                || rg_create_sequence.matcher(line).lookingAt()
+                || rg_comment_on.matcher(line).lookingAt()
+                || rg_create_table.matcher(line).lookingAt()
+                || rg_create_index.matcher(line).lookingAt()
+                || rg_alter_table.matcher(line).lookingAt()) {
 
             String s = this.eatSQL(line);
             return new String2("other", s);
