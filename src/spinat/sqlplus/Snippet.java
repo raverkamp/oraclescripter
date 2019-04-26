@@ -2,18 +2,18 @@ package spinat.sqlplus;
 
 import java.nio.file.Path;
 
-/**
- *
- * @author roland
- */
 public class Snippet {
+    
+    public static enum SnippetType {
+        CODE, SLASH, EMPTY, COMMENT, OTHER
+    }
 
-    public final String what;
+    public final SnippetType what;
     public final String text;
     public final Path filePath;
     public final int lineNo;
 
-    public Snippet(String what, String text, Path filePath, int lineNo) {
+    public Snippet(SnippetType what, String text, Path filePath, int lineNo) {
         this.what = what;
         this.text = text;
         this.filePath = filePath;

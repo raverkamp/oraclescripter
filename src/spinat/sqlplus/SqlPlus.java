@@ -362,12 +362,32 @@ public class SqlPlus {
                     } else if (what.equals("set")) {
                         this.doSet(text);
                     } else {
-                        res.add(new Snippet(what, text, this.frames.get(0).filePath, currentLineno));
+                        final Snippet.SnippetType stype;
+                        switch (what) {
+                            case "code":
+                                stype = Snippet.SnippetType.CODE;
+                                break;
+                            case "comment":
+                                stype = Snippet.SnippetType.COMMENT;
+                                break;
+                            case "other":
+                                stype = Snippet.SnippetType.OTHER;
+                                break;
+                            case "slash":
+                                stype = Snippet.SnippetType.SLASH;
+                                break;
+                            case "empty":
+                                stype = Snippet.SnippetType.EMPTY;
+                                break;
+                            default:
+                                throw new RuntimeException("unexpected type of snippet;: " + what);
+                        }
+                        res.add(new Snippet(stype, text, this.frames.get(0).filePath, currentLineno));
                     }
                 }
             }
         } catch (Throwable e) {
-            String msg = "failure when parsing at: " + this.frames.get(0).filePath + " at lineno=" + this.frames.get(0).lineNo;
+            String msg = "failure when parsing at: " + this.frames.get(0).filePath + " at lineno=" + this.frames.get(0).lineNo + ":" + e.getMessage();
             throw new RuntimeException(msg, e);
         }
     }

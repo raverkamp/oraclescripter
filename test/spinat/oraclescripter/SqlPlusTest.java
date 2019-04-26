@@ -23,13 +23,13 @@ public class SqlPlusTest {
         assertTrue(sl.size() > 0);
     }
 
-    static String atLine(ArrayList<Snippet> sl, int lineNo) {
+    static Snippet.SnippetType atLine(ArrayList<Snippet> sl, int lineNo) {
         for (Snippet s : sl) {
             if (s.lineNo == lineNo) {
                 return s.what;
             }
         }
-        return "nix";
+        return null;
     }
 
     @Test
@@ -37,21 +37,21 @@ public class SqlPlusTest {
         SqlPlus sqlplus = new SqlPlus(Paths.get("test/other.sql"), Paths.get("test"));
         ArrayList<Snippet> sl = sqlplus.process();
         assertTrue(sl.size() > 0);
-        assertEquals(atLine(sl, 1), "comment");
-        assertEquals(atLine(sl, 2), "other");
-        assertEquals(atLine(sl, 2), "other");
-        assertEquals(atLine(sl, 4), "other");
-        assertEquals(atLine(sl, 6), "other");
-        assertEquals(atLine(sl, 9), "other");
-        assertEquals(atLine(sl, 12), "other");
-        assertEquals(atLine(sl, 15), "other");
-        assertEquals(atLine(sl, 16), "other");
-        assertEquals(atLine(sl, 17), "other");
-        assertEquals(atLine(sl, 19), "other");
-        assertEquals(atLine(sl, 20), "other");
-        assertEquals(atLine(sl, 21), "empty");
-        assertEquals(atLine(sl, 22), "other");
-        assertEquals(atLine(sl, 24), "code");
-        assertEquals(atLine(sl, 29), "code");
+        assertEquals(atLine(sl, 1), Snippet.SnippetType.COMMENT);
+        assertEquals(atLine(sl, 2), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 2), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 4), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 6), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 9), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 12), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 15), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 16), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 17), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 19), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 20), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 21), Snippet.SnippetType.EMPTY);
+        assertEquals(atLine(sl, 22), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 24), Snippet.SnippetType.CODE);
+        assertEquals(atLine(sl, 29), Snippet.SnippetType.CODE);
     }
 }
