@@ -31,3 +31,8 @@ begin
  null   ;
 end  bla;
 /
+
+create table a (x integer,
+                y varchar2(200);
+
+alter table bla add;

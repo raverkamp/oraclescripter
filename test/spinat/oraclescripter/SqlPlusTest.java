@@ -45,7 +45,7 @@ public class SqlPlusTest {
         assertEquals(atLine(sl, 9), Snippet.SnippetType.OTHER);
         assertEquals(atLine(sl, 12), Snippet.SnippetType.OTHER);
         assertEquals(atLine(sl, 15), Snippet.SnippetType.OTHER);
-        assertEquals(atLine(sl, 16), Snippet.SnippetType.OTHER);
+        assertEquals(atLine(sl, 16), Snippet.SnippetType.CREATE_TABLE);
         assertEquals(atLine(sl, 17), Snippet.SnippetType.OTHER);
         assertEquals(atLine(sl, 19), Snippet.SnippetType.OTHER);
         assertEquals(atLine(sl, 20), Snippet.SnippetType.OTHER);
@@ -53,5 +53,10 @@ public class SqlPlusTest {
         assertEquals(atLine(sl, 22), Snippet.SnippetType.OTHER);
         assertEquals(atLine(sl, 24), Snippet.SnippetType.CODE);
         assertEquals(atLine(sl, 29), Snippet.SnippetType.CODE);
+        
+        assertEquals(atLine(sl, 35), Snippet.SnippetType.CREATE_TABLE);
+        
+        assertEquals(atLine(sl, 38), Snippet.SnippetType.OTHER);
+        
     }
 }

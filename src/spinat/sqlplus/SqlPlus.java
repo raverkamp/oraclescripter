@@ -230,6 +230,11 @@ public class SqlPlus {
             String s = this.eatSQL(line);
             return new String2("code", s);
         }
+        
+        if (rg_create_table.matcher(line).lookingAt()) {
+            String s = this.eatSQL(line);
+            return new String2("create-table", s);
+        }
 
         if (rg_create_or_replace_synonym.matcher(line).lookingAt()
                 || rg_create_synonym.matcher(line).lookingAt()
@@ -378,6 +383,9 @@ public class SqlPlus {
                                 break;
                             case "empty":
                                 stype = Snippet.SnippetType.EMPTY;
+                                break;
+                            case "create-table":
+                                stype = Snippet.SnippetType.CREATE_TABLE;
                                 break;
                             default:
                                 throw new RuntimeException("unexpected type of snippet;: " + what);

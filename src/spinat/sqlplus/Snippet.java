@@ -5,7 +5,7 @@ import java.nio.file.Path;
 public class Snippet {
     
     public static enum SnippetType {
-        CODE, SLASH, EMPTY, COMMENT, OTHER
+        CODE, SLASH, EMPTY, COMMENT, CREATE_TABLE, OTHER
     }
 
     public final SnippetType what;
