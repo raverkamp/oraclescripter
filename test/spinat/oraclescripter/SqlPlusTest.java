@@ -6,7 +6,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import org.junit.Test;
 import static org.junit.Assert.*;
-import spinat.sqlplus.SqlPlus.Snippet;
+import spinat.sqlplus.Snippet;
 
 public class SqlPlusTest {
 

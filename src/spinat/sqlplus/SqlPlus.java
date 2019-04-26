@@ -60,29 +60,6 @@ public class SqlPlus {
 
     static Pattern rg_comment_in_sql = Pattern.compile("--[^\\n]*\\n", Pattern.CASE_INSENSITIVE);
 
-    public static class Snippet {
-
-        public final String what;
-        public final String text;
-        public final Path filePath;
-        public final int lineNo;
-
-        public Snippet(String what,
-                String text,
-                Path filePath,
-                int lineNo) {
-            this.what = what;
-            this.text = text;
-            this.filePath = filePath;
-            this.lineNo = lineNo;
-        }
-
-        @Override
-        public String toString() {
-            return "<Snippet " + what + ", file=" + filePath + ", lineno=" + lineNo
-                    + " text=" + text.substring(0, Math.min(text.length(), 60)) + ">";
-        }
-    }
 
     private static class FileFrame {
 
@@ -395,20 +372,6 @@ public class SqlPlus {
         }
     }
 
-    public static class CodeInfo {
-
-        public final String what;
-        public final String name;
-        public final String schema;
-        public final String text;
-
-        public CodeInfo(String what, String name, String schema, String text) {
-            this.what = what;
-            this.name = name;
-            this.schema = schema;
-            this.text = text;
-        }
-    }
 
     static Pattern rg_create_or_replace = Pattern.compile("\\s*create\\s+or\\s+replace\\s+(and\\s+compile\\s+)?", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create = Pattern.compile("\\s*create\\s", Pattern.CASE_INSENSITIVE);

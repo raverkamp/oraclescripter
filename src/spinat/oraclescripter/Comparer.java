@@ -15,8 +15,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
-import spinat.sqlplus.SqlPlus.CodeInfo;
-import spinat.sqlplus.SqlPlus.Snippet;
+import spinat.sqlplus.CodeInfo;
+import spinat.sqlplus.Snippet;
 
 public class Comparer {
 
