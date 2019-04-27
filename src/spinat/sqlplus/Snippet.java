@@ -3,7 +3,7 @@ package spinat.sqlplus;
 import java.nio.file.Path;
 
 public class Snippet {
-    
+
     public static enum SnippetType {
         CODE, SLASH, EMPTY, COMMENT, CREATE_TABLE, OTHER
     }

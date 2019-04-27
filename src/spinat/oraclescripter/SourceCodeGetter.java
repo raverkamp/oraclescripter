@@ -24,6 +24,8 @@ public class SourceCodeGetter {
     private HashMap<String, String> view_sources = new HashMap<>();
     private HashMap<String, String> view_tab_columns = new HashMap<>();
     private HashMap<String, String> trigger_sources = new HashMap<>();
+    private HashMap<String, String> table_sources = new HashMap<>();
+
     private final SourceRepo source_repo = new SourceRepo();
 
     void loadUserSource(ArrayList<String> objectList) throws SQLException {
@@ -189,11 +191,60 @@ public class SourceCodeGetter {
         }
     }
 
+    void einpacken(String table_name, ArrayList<TableModel.ColumnModel> columns) {
+        TableModel m = new TableModel(table_name, columns);
+        String source = m.ConvertToCanonicalString();
+        this.table_sources.put(table_name, source);
+    }
+
+    void loadTableSources(ArrayList<String> tables) throws SQLException {
+        String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select table_name, column_name, data_type,data_length, data_precision, data_scale, nullable from " + columnsView + "\n"
+                + "where table_name in (select column_value from table(?))"
+                + " and owner = ?"
+                + " order by table_name,column_id")) {
+            ps.setFetchSize(10000);
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            String old_table_name = null;
+            StringBuilder b = new StringBuilder();
+            ArrayList<TableModel.ColumnModel> columns = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String table_name = rs.getString(1);
+                    if (old_table_name != null && !table_name.equals(old_table_name)) {
+                        einpacken(old_table_name, columns);
+                        columns.clear();
+                    }
+                    old_table_name = table_name;
+                    String columnName = rs.getString("COLUMN_NAME");
+                    String dataType = rs.getString("DATA_TYPE");
+                    int dataLength = rs.getInt("DATA_LENGTH");
+                    boolean nullable = rs.getString("NULLABLE").equals("Y");
+                    final String type;
+                    if (dataType.equals("VARCHAR2")) {
+                        type = "VARCHAR2(" + dataLength + ")";
+                    } else {
+                        type = dataType;
+                    }
+                    columns.add(new TableModel.ColumnModel(columnName, type, nullable));
+                }
+                if (old_table_name != null) {
+                    einpacken(old_table_name, columns);
+                }
+            }
+
+        }
+    }
+
     public void load(ArrayList<DBObject> objects) throws SQLException {
-        this.usersources = new HashMap<>();
         ArrayList<String> l = new ArrayList<>();
         ArrayList<String> views = new ArrayList<>();
         ArrayList<String> triggers = new ArrayList<>();
+        ArrayList<String> tables = new ArrayList<>();
         for (DBObject o : objects) {
             if (o.type.equals("VIEW")) {
                 views.add(o.name);
@@ -201,6 +252,10 @@ public class SourceCodeGetter {
             }
             if (o.type.equals("TRIGGER")) {
                 triggers.add(o.name);
+                continue;
+            }
+            if (o.type.equals("TABLE")) {
+                tables.add(o.name);
                 continue;
             }
             if (o.type.equals("PACKAGE")) {
@@ -216,6 +271,7 @@ public class SourceCodeGetter {
         this.loadTriggerSource(triggers);
         this.loadViewColumns(views);
         this.loadViewSource(views);
+        this.loadTableSources(tables);
 
     }
 
@@ -229,6 +285,10 @@ public class SourceCodeGetter {
         if ("TRIGGER".equals(objectType)) {
             return getTriggerSourceCode(objectName);
         }
+        if ("TABLE".equals(objectType)) {
+            return getTableSourceCode(objectName);
+        }
+
         throw new RuntimeException("unknown kind of object " + objectType);
     }
 
@@ -286,6 +346,10 @@ public class SourceCodeGetter {
 
     private String getTriggerSourceCode(String trigger) {
         return trigger_sources.get(trigger);
+    }
+
+    private String getTableSourceCode(String trigger) {
+        return table_sources.get(trigger);
     }
 
     public SourceRepo getSourceRepo() {

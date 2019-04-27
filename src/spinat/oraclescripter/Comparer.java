@@ -142,6 +142,7 @@ public class Comparer {
         Path realPath = Paths.get(fileName).toAbsolutePath();
         Properties props = Helper.loadProperties(realPath);
         String schemas = Helper.getProp(props, "schemas");
+        boolean includeTables = Helper.getPropBool(props, "includetables", false);
         String connectionDesc = Helper.getProp(props, "connection");
         boolean ignoreDBOnly = Helper.getPropBool(props, "ignoredbonly", false);
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
@@ -160,7 +161,7 @@ public class Comparer {
             String owner = schema.toUpperCase(Locale.ROOT);
             ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
             conds.obj_where = "1=1";
-            ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(connection, owner, true, conds);
+            ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(connection, owner, true, conds, includeTables);
             SourceCodeGetter sc = new SourceCodeGetter(connection, owner, true);
             sc.load(dbObjects);
             SourceRepo repoDB = sc.getSourceRepo();

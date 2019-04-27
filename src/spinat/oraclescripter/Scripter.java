@@ -40,7 +40,8 @@ public class Scripter {
                 "function", "fun",
                 "view", "vw",
                 "trigger", "trg",
-                "java_source", "java"});
+                "java_source", "java",
+                "table", "tab"});
 
     private static Path saveObject(Path baseDir, java.util.Properties props,
             String objectType, String objectName, String src)
@@ -316,7 +317,9 @@ public class Scripter {
         cond.obj_where = Helper.getProp(props, "object-where", null);
         cond.obj_file = Helper.getProp(props, "object-file", null);
 
-        ArrayList<DBObject> objects = getDBObjects(con, owner, useDBAViews, cond);
+        boolean includeTables = Helper.getPropBool(props, "includetables", false);
+
+        ArrayList<DBObject> objects = getDBObjects(con, owner, useDBAViews, cond, includeTables);
         ArrayList<Path> allobjects = new ArrayList<>();
         boolean combine_spec_body = Helper.getPropBool(props, "combine_spec_and_body", false);
         SourceCodeGetter scg = new SourceCodeGetter(con, owner, useDBAViews);
