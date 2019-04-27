@@ -217,38 +217,6 @@ public class SourceCodeGetter {
         this.loadViewColumns(views);
         this.loadViewSource(views);
 
-        String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
-        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select table_name, column_name from " + columnsView + "\n"
-                + "where table_name in (select column_value from table(?))"
-                + " and owner = ?"
-                + " order by table_name,column_id")) {
-            ps.setFetchSize(10000);
-            String[] arg = views.toArray(new String[0]);
-            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
-            ps.setArray(1, a);
-            ps.setString(2, this.owner);
-            String old_table_name = null;
-            StringBuilder b = new StringBuilder();
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String table_name = rs.getString(1);
-                    String column_name = rs.getString(2);
-                    if (old_table_name != null && !old_table_name.equals(table_name)) {
-                        this.view_tab_columns.put(old_table_name, b.toString().substring(2));
-                    }
-                    if (!table_name.equals(old_table_name)) {
-                        b = new StringBuilder();
-                        old_table_name = table_name;
-                    }
-                    b.append(", ").append(Helper.maybeOracleQuote(column_name));
-                }
-                if (b.length() >= 2 && old_table_name != null) {
-                    this.view_tab_columns.put(old_table_name, b.toString().substring(2));
-                }
-            }
-        }
-
     }
 
     public String getCode(String objectType, String objectName) {
