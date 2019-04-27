@@ -1,9 +1,5 @@
 package spinat.sqlplus;
 
-/**
- *
- * @author roland
- */
 public class CodeInfo {
 
     public final String what;

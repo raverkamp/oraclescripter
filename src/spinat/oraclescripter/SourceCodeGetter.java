@@ -195,6 +195,7 @@ public class SourceCodeGetter {
         TableModel m = new TableModel(table_name, columns);
         String source = m.ConvertToCanonicalString();
         this.table_sources.put(table_name, source);
+        this.source_repo.add(new DBObject("TABLE", table_name), source);
     }
 
     void loadTableSources(ArrayList<String> tables) throws SQLException {
@@ -348,8 +349,8 @@ public class SourceCodeGetter {
         return trigger_sources.get(trigger);
     }
 
-    private String getTableSourceCode(String trigger) {
-        return table_sources.get(trigger);
+    private String getTableSourceCode(String table) {
+        return table_sources.get(table);
     }
 
     public SourceRepo getSourceRepo() {

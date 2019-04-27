@@ -205,14 +205,27 @@ public class Comparer {
         ArrayList<Snippet> l = session.process();
         SourceRepo repo = new SourceRepo();
         for (Snippet sn : l) {
-            if (sn.what.equals("code")) {
-                CodeInfo ci = SqlPlus.analyzeCode(sn.text);
-                DBObject dbo = new DBObject(ci.what, ci.name);
-                if (repo.exists(dbo)) {
-                    System.err.println("warning, object already in repo:" + dbo);
+            switch (sn.what) {
+                case CODE: {
+                    CodeInfo ci = SqlPlus.analyzeCode(sn.text);
+                    DBObject dbo = new DBObject(ci.what, ci.name);
+                    if (repo.exists(dbo)) {
+                        System.err.println("warning, object already in repo:" + dbo);
+                    }
+                    repo.add(dbo, ci.text);
                 }
-                repo.add(dbo, ci.text);
+                break;
+                case CREATE_TABLE: {
+                    CodeInfo ci = SqlPlus.analyzeCreateTable(sn.text);
+                    DBObject dbo = new DBObject(ci.what, ci.name);
+                    if (repo.exists(dbo)) {
+                        System.err.println("warning, object already in repo:" + dbo);
+                    }
+                    repo.add(dbo, ci.text);
+                }
+                break;
             }
+
         }
         return repo;
     }

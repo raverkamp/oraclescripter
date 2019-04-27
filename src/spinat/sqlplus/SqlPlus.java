@@ -472,6 +472,19 @@ public class SqlPlus {
         }
     }
 
+    public static CodeInfo analyzeCreateTable(String text) throws Exception {
+        String text2 = skipCreateEtc(text);
+        int tabEnd = findPatternEnd(rg_ident, text2, 0);
+        String s = text2.substring(0, tabEnd);
+        if (!s.equalsIgnoreCase("TABLE")) {
+            throw new Exception("this is not a create table " + text);
+        }
+        int nameEnd = findPatternEnd(rg_ident, text2, tabEnd + 1);
+        String name = text2.substring(tabEnd + 1, nameEnd);
+        CodeInfo ci = new CodeInfo("TABLE", name, null, text);
+        return ci;
+    }
+
     public static CodeInfo analyzeCode(String text) throws Exception {
 
         String prgText = skipCreateEtc(text);
