@@ -262,7 +262,7 @@ public class Comparer {
             TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
             cms.add(cm);
         }
-        return new TableModel(tableName, cms);
+        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {

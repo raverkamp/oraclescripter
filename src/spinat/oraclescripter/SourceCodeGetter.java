@@ -191,19 +191,25 @@ public class SourceCodeGetter {
         }
     }
 
-    void einpacken(String table_name, ArrayList<TableModel.ColumnModel> columns) {
-        TableModel m = new TableModel(table_name, columns);
+    void einpacken(String table_name, boolean temporary, boolean commitPreserveRows, ArrayList<TableModel.ColumnModel> columns) {
+        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns);
         String source = m.ConvertToCanonicalString();
         this.table_sources.put(table_name, source);
         this.source_repo.add(new DBObject("TABLE", table_name), source);
     }
+    
+    
 
     void loadTableSources(ArrayList<String> tables) throws SQLException {
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
+        String tableView = useDBAViews ? "dba_tables" : "all_tables";
+        
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select table_name, column_name, data_type,char_length, char_used, data_precision, data_scale, nullable from " + columnsView + "\n"
-                + "where table_name in (select column_value from table(?))"
-                + " and owner = ?"
+                "select t.table_name, t.duration, column_name, data_type,char_length, " 
+                + " char_used, data_precision, data_scale, nullable \n"
+                + " from " + tableView + " t inner join " + columnsView + " c on c.table_name = t.table_name and c.owner = t.owner \n"
+                + " where t.table_name in (select column_value from table(?))"
+                + " and t.owner = ?"
                 + " order by table_name,column_id")) {
             ps.setFetchSize(10000);
             String[] arg = tables.toArray(new String[0]);
@@ -213,14 +219,16 @@ public class SourceCodeGetter {
             String old_table_name = null;
             StringBuilder b = new StringBuilder();
             ArrayList<TableModel.ColumnModel> columns = new ArrayList<>();
+            String duration = null;
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String table_name = rs.getString(1);
                     if (old_table_name != null && !table_name.equals(old_table_name)) {
-                        einpacken(old_table_name, columns);
+                        einpacken(old_table_name, duration !=null, "SYS$SESSION".equals(duration), columns);
                         columns.clear();
                     }
                     old_table_name = table_name;
+                    duration = rs.getString("DURATION");
                     String columnName = rs.getString("COLUMN_NAME");
                     String dataType = rs.getString("DATA_TYPE");
                     boolean nullable = rs.getString("NULLABLE").equals("Y");
@@ -244,7 +252,7 @@ public class SourceCodeGetter {
                     columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                 }
                 if (old_table_name != null) {
-                    einpacken(old_table_name, columns);
+                     einpacken(old_table_name, duration !=null, "SYS$SESSION".equals(duration), columns);
                 }
             }
 

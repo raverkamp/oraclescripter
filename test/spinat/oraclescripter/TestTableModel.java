@@ -20,7 +20,7 @@ public class TestTableModel {
         l.add(new TableModel.ColumnModel("C1", "number", true));
         l.add(new TableModel.ColumnModel("C2", "bla", false));
         l.add(new TableModel.ColumnModel("C3", "xyz", true));
-        TableModel m = new TableModel("table1", l);
+        TableModel m = new TableModel("table1", false, false, l);
         String s = m.ConvertToCanonicalString();
         assertEquals(s, "create table table1(\n"
                 + "C1 number,\n"

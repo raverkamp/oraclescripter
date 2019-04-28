@@ -35,7 +35,7 @@ public class SqlPlus {
     static Pattern rg_create_sequence
             = Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
     static Pattern rg_comment_on = Pattern.compile("\\s*comment\\s+on\\s+", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_table = Pattern.compile("\\s*create\\s+table\\s+", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_table = Pattern.compile("\\s*create\\s+(global\\s+temporary\\s+)?table\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_index = Pattern.compile("\\s*create\\s+index\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_alter_table = Pattern.compile("\\s*alter\\s+table\\s+", Pattern.CASE_INSENSITIVE);
 
@@ -473,14 +473,13 @@ public class SqlPlus {
     }
 
     public static CodeInfo analyzeCreateTable(String text) throws Exception {
-        String text2 = skipCreateEtc(text);
-        int tabEnd = findPatternEnd(rg_ident, text2, 0);
-        String s = text2.substring(0, tabEnd);
-        if (!s.equalsIgnoreCase("TABLE")) {
+        int a =  findPatternEnd(rg_create_table, text, 0);
+        if (a <0) {
             throw new Exception("this is not a create table " + text);
         }
-        int nameEnd = findPatternEnd(rg_ident, text2, tabEnd + 1);
-        String name = text2.substring(tabEnd + 1, nameEnd);
+        String text2 = text.substring(a).trim();
+        int nameEnd = findPatternEnd(rg_ident, text2, 0);
+        String name = text2.substring(0, nameEnd);
         CodeInfo ci = new CodeInfo("TABLE", name, null, text);
         return ci;
     }
