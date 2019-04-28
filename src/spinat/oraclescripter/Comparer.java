@@ -8,13 +8,20 @@ import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import oracle.jdbc.OracleConnection;
+import spinat.plsqlparser.Ast;
+import spinat.plsqlparser.Ast.RelationalProperty;
+import spinat.plsqlparser.Res;
+import spinat.plsqlparser.Scanner;
+import spinat.plsqlparser.Seq;
 import spinat.sqlplus.CodeInfo;
 import spinat.sqlplus.Snippet;
 
@@ -200,7 +207,48 @@ public class Comparer {
         }
     }
 
+    static String dataTypeToString(Ast.DataType dt) {
+        if (dt instanceof Ast.NamedType) {
+            Ast.NamedType nt = (Ast.NamedType) dt;
+            // only one?
+            return nt.idents.get(0).val;
+        }
+        if (dt instanceof Ast.ParameterizedType) {
+            Ast.ParameterizedType pt = (Ast.ParameterizedType) dt;
+            String name = pt.ident.val;
+            if (name.equals("VARCHAR2")) {
+                int len = pt.var1;
+                final String s;
+                if (pt.charOrByte == null) {
+                    s="";
+                } else {
+                    s = " " + pt.charOrByte.toUpperCase();
+                }
+                return "VARCHAR2("+ len + s +")";
+            }
+        }
+        return "?";
+    }
+    static TableModel tableModelFromSources(ArrayList<String> l) {
+        Seq s = Scanner.scanToSeq(l.get(0));
+        spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
+        Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
+        String tableName = r.v.name.name.val;
+        ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
+        for(RelationalProperty rp : r.v.relationalProperties) {
+            Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
+            String columnName = cd.name;
+            boolean nullable = cd.nullable;
+            String typeName = dataTypeToString(cd.datatype);
+            TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
+            cms.add(cm);
+        }
+        return new TableModel(tableName, cms);
+    }
+
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
+        Map<String, ArrayList<String>> tableSources = new HashMap<>();
+
         SqlPlus session = new SqlPlus(filePath, baseDir);
         ArrayList<Snippet> l = session.process();
         SourceRepo repo = new SourceRepo();
@@ -216,16 +264,23 @@ public class Comparer {
                 }
                 break;
                 case CREATE_TABLE: {
+                    // tables are different, their definition might be 
+                    // distributed over several statements
                     CodeInfo ci = SqlPlus.analyzeCreateTable(sn.text);
-                    DBObject dbo = new DBObject(ci.what, ci.name);
-                    if (repo.exists(dbo)) {
-                        System.err.println("warning, object already in repo:" + dbo);
+                    if (!tableSources.containsKey(ci.name)) {
+                        tableSources.put(ci.name, new ArrayList<>());
                     }
-                    repo.add(dbo, ci.text);
+                    tableSources.get(ci.name).add(sn.text);
                 }
                 break;
             }
 
+        }
+        for (ArrayList<String> tl : tableSources.values()) {
+            TableModel tm = tableModelFromSources(tl);
+            String canoicalSource = tm.ConvertToCanonicalString();
+            DBObject dbo = new DBObject("TABLE", tm.name);
+            repo.add(dbo, canoicalSource);
         }
         return repo;
     }
