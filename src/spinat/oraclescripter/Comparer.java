@@ -142,7 +142,7 @@ public class Comparer {
     // the required properties:
     //   schemas: comma separated list of schemas
     //   connection: a connection descriptor string
-    // per schema there must be a property 
+    // per schema there must be a property
     //   <SCHEMA>.start which names the Sql Plus file to start which loads the objects into
     //   the database
     static void mainFile(String fileName) throws Exception {
@@ -226,6 +226,13 @@ public class Comparer {
                 }
                 return "VARCHAR2(" + len + s + ")";
             }
+            if (name.equals("NUMBER")) {
+                int prec = pt.var1;
+                Integer a = pt.var2;
+                int scale = a == null ? 0 : a;
+                return "NUMBER(" + prec + "," + scale + ")";
+            }
+            return "?";
         }
         if (dt instanceof Ast.TimestampWithTimezone) {
             Ast.TimestampWithTimezone dtz = (Ast.TimestampWithTimezone) dt;
@@ -276,7 +283,7 @@ public class Comparer {
                 }
                 break;
                 case CREATE_TABLE: {
-                    // tables are different, their definition might be 
+                    // tables are different, their definition might be
                     // distributed over several statements
                     CodeInfo ci = SqlPlus.analyzeCreateTable(sn.text);
                     if (!tableSources.containsKey(ci.name)) {

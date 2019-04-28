@@ -201,7 +201,7 @@ public class SourceCodeGetter {
     void loadTableSources(ArrayList<String> tables) throws SQLException {
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select table_name, column_name, data_type,data_length, data_precision, data_scale, nullable from " + columnsView + "\n"
+                "select table_name, column_name, data_type,char_length, char_used, data_precision, data_scale, nullable from " + columnsView + "\n"
                 + "where table_name in (select column_value from table(?))"
                 + " and owner = ?"
                 + " order by table_name,column_id")) {
@@ -223,11 +223,21 @@ public class SourceCodeGetter {
                     old_table_name = table_name;
                     String columnName = rs.getString("COLUMN_NAME");
                     String dataType = rs.getString("DATA_TYPE");
-                    int dataLength = rs.getInt("DATA_LENGTH");
                     boolean nullable = rs.getString("NULLABLE").equals("Y");
                     final String type;
                     if (dataType.equals("VARCHAR2")) {
-                        type = "VARCHAR2(" + dataLength + ")";
+                        int charLength  = rs.getInt("CHAR_LENGTH");
+                        String charUsed = rs.getString("CHAR_USED");
+                        String charOrByte = charUsed.equals("B") ? "BYTE" : "CHAR";
+                        type = "VARCHAR2(" + charLength + " " + charOrByte + ")";
+                    } else if (dataType.equals("NUMBER")){
+                        String dp = rs.getString("DATA_PRECISION");
+                        String ds = rs.getString("DATA_SCALE");
+                        if (dp==null) {
+                            type = "NUMBER";
+                        } else {
+                            type = "NUMBER("+ dp +"," + ds +")";
+                        }
                     } else {
                         type = dataType;
                     }
