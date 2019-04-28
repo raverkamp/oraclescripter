@@ -220,22 +220,34 @@ public class Comparer {
                 int len = pt.var1;
                 final String s;
                 if (pt.charOrByte == null) {
-                    s="";
+                    s = "";
                 } else {
                     s = " " + pt.charOrByte.toUpperCase();
                 }
-                return "VARCHAR2("+ len + s +")";
+                return "VARCHAR2(" + len + s + ")";
             }
+        }
+        if (dt instanceof Ast.TimestampWithTimezone) {
+            Ast.TimestampWithTimezone dtz = (Ast.TimestampWithTimezone) dt;
+            int size = dtz.size == null ? 6 : dtz.size;
+            final String tz;
+            if (dtz.hasTimeZone) {
+                tz = " WITH" + (dtz.localTimeZone ? " LOCAL" : "") + " TIME ZONE";
+            } else {
+                tz = "";
+            }
+            return "TIMESTAMP(" + size + ")" + tz;
         }
         return "?";
     }
+
     static TableModel tableModelFromSources(ArrayList<String> l) {
         Seq s = Scanner.scanToSeq(l.get(0));
         spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
         Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
         String tableName = r.v.name.name.val;
         ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
-        for(RelationalProperty rp : r.v.relationalProperties) {
+        for (RelationalProperty rp : r.v.relationalProperties) {
             Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
             String columnName = cd.name;
             boolean nullable = cd.nullable;

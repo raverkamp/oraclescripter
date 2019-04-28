@@ -16,3 +16,13 @@ begin
   null;
 end;
 /
+
+create table table3 
+(x number(2),
+ y number(3,4),
+ a timestamp with local time zone,
+ b timestamp with time zone,
+ c timestamp(6) with time zone,
+ d timestamp(4) with time zone
+ );
+ 
