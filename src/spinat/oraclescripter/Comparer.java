@@ -249,20 +249,34 @@ public class Comparer {
     }
 
     static TableModel tableModelFromSources(ArrayList<String> l) {
-        Seq s = Scanner.scanToSeq(l.get(0));
+        // the create table statement must be first!
+        String createTabSource = l.get(0);
+        Seq s = Scanner.scanToSeq(createTabSource);
         spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
         Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
         String tableName = r.v.name.name.val;
         ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
+        ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
         for (RelationalProperty rp : r.v.relationalProperties) {
-            Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
-            String columnName = cd.name;
-            boolean nullable = cd.nullable;
-            String typeName = dataTypeToString(cd.datatype);
-            TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
-            cms.add(cm);
+            if (rp instanceof Ast.ColumnDefinition) {
+                Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
+                String columnName = cd.name;
+                boolean nullable = cd.nullable;
+                String typeName = dataTypeToString(cd.datatype);
+                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
+                cms.add(cm);
+            }
+            if (rp instanceof Ast.CheckConstraintDefinition) {
+                // fixme: this is a hack to get the underlying sequence of the constraint condition
+                Ast.CheckConstraintDefinition cd = (Ast.CheckConstraintDefinition) rp;
+                Ast.Expression ex = cd.expression;
+                String constraintSource = createTabSource.substring(ex.getStart(), ex.getEnd());
+                String canonicalSource = AstHelper.toCanonicalString(constraintSource);
+                TableModel.CheckConstraintModel cm = new TableModel.CheckConstraintModel(cd.name, canonicalSource);
+                consModels.add(cm);
+            }
         }
-        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms);
+        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms, consModels);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {

@@ -473,8 +473,8 @@ public class SqlPlus {
     }
 
     public static CodeInfo analyzeCreateTable(String text) throws Exception {
-        int a =  findPatternEnd(rg_create_table, text, 0);
-        if (a <0) {
+        int a = findPatternEnd(rg_create_table, text, 0);
+        if (a < 0) {
             throw new Exception("this is not a create table " + text);
         }
         String text2 = text.substring(a).trim();

@@ -27,8 +27,27 @@ create table table3
  b timestamp with time zone,
  c timestamp(6) with time zone,
  d timestamp(4) with time zone,
- e timestamp
- );
+ e timestamp);
  
+
+  CREATE GLOBAL TEMPORARY TABLE table4
+   (	X NUMBER, 
+	V VARCHAR2(200 BYTE)) ON COMMIT DELETE ROWS ;
+   
+   
+  CREATE GLOBAL TEMPORARY TABLE TABLE5
+   (X NUMBER, 
+	V VARCHAR2(200 BYTE)
+   ) ON COMMIT PRESERVE ROWS ;
+
+  CREATE GLOBAL TEMPORARY TABLE TABLE6
+   (X NUMBER, 
+	  V VARCHAR2 (200 BYTE)) ;
+    
+
+create table table7 
+( x integer, 
+  constraint x check (x>0));
+
  
  

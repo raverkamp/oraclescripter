@@ -4,6 +4,8 @@ import java.util.*;
 import java.sql.*;
 import oracle.jdbc.OracleConnection;
 import oracle.jdbc.OraclePreparedStatement;
+import spinat.plsqlparser.Ast;
+import spinat.plsqlparser.Seq;
 
 public class SourceCodeGetter {
 
@@ -191,21 +193,68 @@ public class SourceCodeGetter {
         }
     }
 
-    void einpacken(String table_name, boolean temporary, boolean commitPreserveRows, ArrayList<TableModel.ColumnModel> columns) {
-        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns);
+    void einpacken(String table_name,
+            boolean temporary,
+            boolean commitPreserveRows,
+            ArrayList<TableModel.ColumnModel> columns,
+            ArrayList<TableModel.ConstraintModel> checkConstraints) {
+        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns, checkConstraints);
         String source = m.ConvertToCanonicalString();
         this.table_sources.put(table_name, source);
         this.source_repo.add(new DBObject("TABLE", table_name), source);
     }
-    
-    
+
+    Map<String, ArrayList<TableModel.ConstraintModel>> getCheckConstraints(ArrayList<String> tables) throws SQLException {
+        String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
+        Map<String, ArrayList<TableModel.ConstraintModel>> result = new HashMap<>();
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select constraint_name, table_name, search_condition \n"
+                + " from " + constraintView + " c\n"
+                + " where c.CONSTRAINT_TYPE = 'C'\n"
+                + " and generated = 'USER NAME'"
+                + " and c.table_name in (select column_value from table(?))"
+                + " and c.owner = ?"
+                + " order by table_name, constraint_name")) {
+            ps.setFetchSize(10000);
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            String old_table_name = null;
+            ArrayList<TableModel.ConstraintModel> constraintList = null;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String tableName = rs.getString("TABLE_NAME");
+                    if (!tableName.equals(old_table_name)) {
+                        if (constraintList != null) {
+                            result.put(old_table_name, constraintList);
+                        }
+                        old_table_name = tableName;
+                        constraintList = new ArrayList<>();
+                    }
+                    String constraintName = rs.getString("CONSTRAINT_NAME");
+                    String s = rs.getString("SEARCH_CONDITION");
+                    String canonicalSource = AstHelper.toCanonicalString(s);
+                    constraintList.add(new TableModel.CheckConstraintModel(constraintName, canonicalSource));
+                }
+                if (constraintList != null) {
+                    result.put(old_table_name, constraintList);
+                }
+
+            }
+            return result;
+        }
+    }
 
     void loadTableSources(ArrayList<String> tables) throws SQLException {
+
+        Map<String, ArrayList<TableModel.ConstraintModel>> cd = getCheckConstraints(tables);
+
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
-        
+
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
-                "select t.table_name, t.duration, column_name, data_type,char_length, " 
+                "select t.table_name, t.duration, column_name, data_type,char_length, "
                 + " char_used, data_precision, data_scale, nullable \n"
                 + " from " + tableView + " t inner join " + columnsView + " c on c.table_name = t.table_name and c.owner = t.owner \n"
                 + " where t.table_name in (select column_value from table(?))"
@@ -224,7 +273,10 @@ public class SourceCodeGetter {
                 while (rs.next()) {
                     String table_name = rs.getString(1);
                     if (old_table_name != null && !table_name.equals(old_table_name)) {
-                        einpacken(old_table_name, duration !=null, "SYS$SESSION".equals(duration), columns);
+                        einpacken(old_table_name, duration != null,
+                                "SYS$SESSION".equals(duration),
+                                columns,
+                                cd.get(old_table_name));
                         columns.clear();
                     }
                     old_table_name = table_name;
@@ -234,17 +286,17 @@ public class SourceCodeGetter {
                     boolean nullable = rs.getString("NULLABLE").equals("Y");
                     final String type;
                     if (dataType.equals("VARCHAR2")) {
-                        int charLength  = rs.getInt("CHAR_LENGTH");
+                        int charLength = rs.getInt("CHAR_LENGTH");
                         String charUsed = rs.getString("CHAR_USED");
                         String charOrByte = charUsed.equals("B") ? "BYTE" : "CHAR";
                         type = "VARCHAR2(" + charLength + " " + charOrByte + ")";
-                    } else if (dataType.equals("NUMBER")){
+                    } else if (dataType.equals("NUMBER")) {
                         String dp = rs.getString("DATA_PRECISION");
                         String ds = rs.getString("DATA_SCALE");
-                        if (dp==null) {
+                        if (dp == null) {
                             type = "NUMBER";
                         } else {
-                            type = "NUMBER("+ dp +"," + ds +")";
+                            type = "NUMBER(" + dp + "," + ds + ")";
                         }
                     } else {
                         type = dataType;
@@ -252,7 +304,10 @@ public class SourceCodeGetter {
                     columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                 }
                 if (old_table_name != null) {
-                     einpacken(old_table_name, duration !=null, "SYS$SESSION".equals(duration), columns);
+                    einpacken(old_table_name, duration != null,
+                            "SYS$SESSION".equals(duration),
+                            columns,
+                            cd.get(old_table_name));
                 }
             }
 
