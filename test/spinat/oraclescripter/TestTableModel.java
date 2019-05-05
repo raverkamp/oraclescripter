@@ -23,7 +23,7 @@ public class TestTableModel {
         ArrayList<TableModel.ConstraintModel> cl = new ArrayList<>();
         String x = AstHelper.toCanonicalString(" x*y /  8 /* some commnet */");
         cl.add(new TableModel.CheckConstraintModel("CC1", x));
-        TableModel m = new TableModel("table1", false, false, l, cl);
+        TableModel m = new TableModel("table1", false, false, l, cl, null);
         String s = m.ConvertToCanonicalString();
         assertEquals(s, "create table table1(\n"
                 + "C1 number,\n"

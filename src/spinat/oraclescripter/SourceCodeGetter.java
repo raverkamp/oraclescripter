@@ -196,12 +196,70 @@ public class SourceCodeGetter {
     void einpacken(String table_name,
             boolean temporary,
             boolean commitPreserveRows,
-            ArrayList<TableModel.ColumnModel> columns,
-            ArrayList<TableModel.ConstraintModel> checkConstraints) {
-        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns, checkConstraints);
+            List<TableModel.ColumnModel> columns,
+            List<TableModel.ConstraintModel> checkConstraints,
+            TableModel.PrimaryKeyModel primaryKey) {
+        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns, checkConstraints, primaryKey);
         String source = m.ConvertToCanonicalString();
         this.table_sources.put(table_name, source);
         this.source_repo.add(new DBObject("TABLE", table_name), source);
+    }
+
+    void getKeyConstraints(ArrayList<String> tables, Map<String, TableModel.PrimaryKeyModel> primaryKeys, Map<String, ArrayList<TableModel.UniqueKeyModel>> uniqueKeys) throws SQLException {
+
+        String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
+        String constraintColView = useDBAViews ? "dba_cons_columns" : "all_cons_columns";
+        String sql = "select c.table_name,c.constraint_name, c.constraint_type,ck.COLUMN_NAME\n"
+                + " from " + constraintView + " c\n"
+                + " inner join " + constraintColView + " ck\n"
+                + "   on ck.OWNER = c.owner\n"
+                + "   and ck.CONSTRAINT_NAME = c.CONSTRAINT_NAME\n"
+                + " where c.constraint_type in ('U', 'P') "
+                + " and c.table_name in (select column_value from table(?))"
+                + " and c.owner = ?"
+                + " order by c.owner, c.table_name, c.constraint_name, ck.position";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            ArrayList<String> columns = null;
+            String constraint_name = null;
+            String table_name = null;
+            String constraint_type = null;
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String cnew = rs.getString("CONSTRAINT_NAME");
+                    if (!cnew.equals(constraint_name)) {
+                        if (constraint_name != null) {
+                            if (constraint_type.equals("P")) {
+                                primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
+                            } else {
+                                if (!uniqueKeys.containsKey(table_name)) {
+                                    uniqueKeys.put(table_name, new ArrayList<>());
+                                }
+                                uniqueKeys.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
+                            }
+                        }
+                        constraint_name = cnew;
+                        table_name = rs.getString("TABLE_NAME");
+                        constraint_type = rs.getString("CONSTRAINT_TYPE");
+                        columns = new ArrayList<>();
+                    }
+                    columns.add(rs.getString("COLUMN_NAME"));
+                }
+                if (constraint_name != null) {
+                    if (constraint_type.equals("P")) {
+                        primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
+                    } else {
+                        if (!uniqueKeys.containsKey(table_name)) {
+                            uniqueKeys.put(table_name, new ArrayList<>());
+                        }
+                        uniqueKeys.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
+                    }
+                }
+            }
+        }
     }
 
     Map<String, ArrayList<TableModel.ConstraintModel>> getCheckConstraints(ArrayList<String> tables) throws SQLException {
@@ -249,6 +307,9 @@ public class SourceCodeGetter {
     void loadTableSources(ArrayList<String> tables) throws SQLException {
 
         Map<String, ArrayList<TableModel.ConstraintModel>> cd = getCheckConstraints(tables);
+        Map<String, TableModel.PrimaryKeyModel> primaryKeys = new HashMap<>();
+        Map<String, ArrayList<TableModel.UniqueKeyModel>> uniqueKeys = new HashMap<>();
+        getKeyConstraints(tables, primaryKeys, uniqueKeys);
 
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
@@ -273,10 +334,15 @@ public class SourceCodeGetter {
                 while (rs.next()) {
                     String table_name = rs.getString(1);
                     if (old_table_name != null && !table_name.equals(old_table_name)) {
+                        List<TableModel.ConstraintModel> x = cd.getOrDefault(old_table_name, new ArrayList<>());
+                        x.addAll(uniqueKeys.getOrDefault(old_table_name, new ArrayList<>()));
+
                         einpacken(old_table_name, duration != null,
                                 "SYS$SESSION".equals(duration),
                                 columns,
-                                cd.get(old_table_name));
+                                cd.get(old_table_name),
+                                primaryKeys.get(old_table_name)
+                        );
                         columns.clear();
                     }
                     old_table_name = table_name;
@@ -304,10 +370,14 @@ public class SourceCodeGetter {
                     columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                 }
                 if (old_table_name != null) {
+                    List<TableModel.ConstraintModel> x = cd.getOrDefault(old_table_name, new ArrayList<>());
+                    x.addAll(uniqueKeys.getOrDefault(old_table_name, new ArrayList<>()));
                     einpacken(old_table_name, duration != null,
                             "SYS$SESSION".equals(duration),
                             columns,
-                            cd.get(old_table_name));
+                            x,
+                            primaryKeys.get(old_table_name)
+                    );
                 }
             }
 

@@ -29,6 +29,11 @@ create table table3
  d timestamp(4) with time zone,
  e timestamp);
  
+ alter table table3 add constraint pk_table3  primary key(x,y);
+ 
+ alter table table3 add constraint uk_table3  unique (v,w);
+ 
+ 
 
   CREATE GLOBAL TEMPORARY TABLE table4
    (	X NUMBER, 

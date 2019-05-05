@@ -1,6 +1,7 @@
 package spinat.oraclescripter;
 
 import java.util.ArrayList;
+import java.util.List;
 
 // the model of a database table
 public class TableModel {
@@ -22,33 +23,54 @@ public class TableModel {
 
         public final String name;
 
-        ConstraintModel(String name) {
+        protected ConstraintModel(String name) {
             this.name = name;
         }
     }
 
-    public static class CheckConstraintModel extends ConstraintModel {
+    public final static class CheckConstraintModel extends ConstraintModel {
 
         public final String condition;
 
-        CheckConstraintModel(String name, String condition) {
+        public CheckConstraintModel(String name, String condition) {
             super(name);
             this.condition = condition;
         }
     }
 
+    public final static class PrimaryKeyModel extends ConstraintModel {
+
+        public final List<String> columns;
+
+        public PrimaryKeyModel(String name, List<String> columns) {
+            super(name);
+            this.columns = columns;
+        }
+    }
+
+    public final static class UniqueKeyModel extends ConstraintModel {
+
+        public final List<String> columns;
+
+        public UniqueKeyModel(String name, List<String> columns) {
+            super(name);
+            this.columns = columns;
+        }
+    }
+
     public final String name;
-    public final ArrayList<ColumnModel> columns;
+    public final List<ColumnModel> columns;
     public final boolean temporary;
     public final boolean onCommitPreserve;
-    public final ArrayList<ConstraintModel> constraints;
+    public final List<ConstraintModel> constraints;
+    public final PrimaryKeyModel primaryKey;
 
     public TableModel(String name,
             boolean temporary,
             boolean onCommitPreserve,
-            ArrayList<ColumnModel> columns,
-            ArrayList<ConstraintModel> constraints
-    ) {
+            List<ColumnModel> columns,
+            List<ConstraintModel> constraints,
+            PrimaryKeyModel primaryKey) {
         this.name = name;
         this.columns = columns;
         this.temporary = temporary;
@@ -58,6 +80,7 @@ public class TableModel {
         } else {
             this.constraints = new ArrayList<>();
         }
+        this.primaryKey = primaryKey;
     }
 
     public String ConvertToCanonicalString() {
@@ -73,11 +96,20 @@ public class TableModel {
                 b.append(",\n");
             }
         }
+        if (this.primaryKey != null) {
+            b.append(",\n");
+            b.append("constraint " + primaryKey.name);
+            b.append(" primary key (").append(String.join(", ", this.primaryKey.columns)).append(")");
+        }
         for (ConstraintModel cm : this.constraints) {
             b.append(",\n");
             b.append("constraint " + cm.name);
             if (cm instanceof CheckConstraintModel) {
                 b.append(" check (" + ((CheckConstraintModel) cm).condition + ")");
+            }
+            if (cm instanceof UniqueKeyModel) {
+                UniqueKeyModel km = (UniqueKeyModel) cm;
+                b.append(" unique (").append(String.join(", ", km.columns)).append(")");
             }
         }
         b.append(")");

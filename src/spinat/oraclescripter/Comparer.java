@@ -10,12 +10,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import oracle.jdbc.OracleConnection;
 import spinat.plsqlparser.Ast;
 import spinat.plsqlparser.Ast.RelationalProperty;
@@ -257,10 +259,11 @@ public class Comparer {
         String tableName = r.v.name.name.val;
         ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
         ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
+        TableModel.PrimaryKeyModel primaryKey = null;
         for (RelationalProperty rp : r.v.relationalProperties) {
             if (rp instanceof Ast.ColumnDefinition) {
                 Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
-                String columnName = cd.name;
+                String columnName = cd.name.val;
                 boolean nullable = cd.nullable;
                 String typeName = dataTypeToString(cd.datatype);
                 TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
@@ -272,11 +275,30 @@ public class Comparer {
                 Ast.Expression ex = cd.expression;
                 String constraintSource = createTabSource.substring(ex.getStart(), ex.getEnd());
                 String canonicalSource = AstHelper.toCanonicalString(constraintSource);
-                TableModel.CheckConstraintModel cm = new TableModel.CheckConstraintModel(cd.name, canonicalSource);
+                TableModel.CheckConstraintModel cm = new TableModel.CheckConstraintModel(cd.name.val, canonicalSource);
                 consModels.add(cm);
             }
+            if (rp instanceof Ast.PrimaryKeyDefinition) {
+                // fixme: this is a hack to get the underlying sequence of the constraint condition
+                Ast.PrimaryKeyDefinition pk = (Ast.PrimaryKeyDefinition) rp;
+                String pkname = pk.name.val;
+                List<String> columns = pk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+                if (primaryKey != null) {
+                    System.err.println("primary key for table already given: " + tableName);
+                }
+                primaryKey = new TableModel.PrimaryKeyModel(pkname, columns);
+
+            }
+            if (rp instanceof Ast.UniqueKeyDefinition) {
+                // fixme: this is a hack to get the underlying sequence of the constraint condition
+                Ast.UniqueKeyDefinition uk = (Ast.UniqueKeyDefinition) rp;
+                String pkname = uk.name.val;
+                List<String> columns = uk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+                consModels.add(new TableModel.UniqueKeyModel(pkname, columns));
+
+            }
         }
-        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms, consModels);
+        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms, consModels, primaryKey);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
