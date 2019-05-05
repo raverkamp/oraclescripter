@@ -203,6 +203,14 @@ public class Comparer {
                 Process pr = pb.start();
                 pr.waitFor();
             }
+            if (Helper.getProp(props, "usemeld", "N").equalsIgnoreCase("Y")) {
+                ProcessBuilder pb = new ProcessBuilder(new String[]{"meld",
+                    "DB",
+                    "DISK"});
+                pb.directory(tempDir.toFile());
+                Process pr = pb.start();
+                pr.waitFor();
+            }
         } else {
             System.out.println("there are no differences");
 

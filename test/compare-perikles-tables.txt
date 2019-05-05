@@ -2,3 +2,4 @@ schemas=perikles
 perikles.start=/tmp/script-perikles/all-objects.sql
 connection=drakon_catalog/drakon_catalog@localhost:1521:xe
 includetables=true
+usemeld=y
