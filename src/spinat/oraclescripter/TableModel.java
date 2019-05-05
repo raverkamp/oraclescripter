@@ -1,6 +1,7 @@
 package spinat.oraclescripter;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 // the model of a database table
@@ -101,7 +102,10 @@ public class TableModel {
             b.append("constraint " + primaryKey.name);
             b.append(" primary key (").append(String.join(", ", this.primaryKey.columns)).append(")");
         }
-        for (ConstraintModel cm : this.constraints) {
+        ArrayList<ConstraintModel> x = new ArrayList<>();
+        x.addAll(this.constraints);
+        x.sort((ConstraintModel t, ConstraintModel t1) -> t.name.compareTo(t1.name));
+        for (ConstraintModel cm : x) {
             b.append(",\n");
             b.append("constraint " + cm.name);
             if (cm instanceof CheckConstraintModel) {

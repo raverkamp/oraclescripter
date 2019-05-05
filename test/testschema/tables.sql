@@ -32,6 +32,7 @@ create table table3
  alter table table3 add constraint pk_table3  primary key(x,y);
  
  alter table table3 add constraint uk_table3  unique (v,w);
+ alter table table3 add constraint aauk_table3  unique (u,w);
  
  
 
