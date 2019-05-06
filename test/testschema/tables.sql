@@ -34,7 +34,15 @@ create table table3
  alter table table3 add constraint uk_table3  unique (v,w);
  alter table table3 add constraint aauk_table3  unique (u,w);
  
- 
+ create table table3b
+ (u number,
+ x0 number,
+ y0 number,
+ constraint pk_table3b primary key (u),
+ constraint fk_table3b foreign key (x0,y0) references table3(x,y),
+ constraint fk_table3b_rev foreign key (y0,x0) references table3(x,y));
+
+  
 
   CREATE GLOBAL TEMPORARY TABLE table4
    (	X NUMBER, 

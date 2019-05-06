@@ -59,6 +59,22 @@ public class TableModel {
         }
     }
 
+    public final static class ForeignKeyModel extends ConstraintModel {
+
+        public final List<String> columns;
+        public final List<String> rcolumns;
+        public final String rowner;
+        public final String rtable;
+
+        public ForeignKeyModel(String name, String rowner, String rtable, List<String> columns, List<String> rcolumns) {
+            super(name);
+            this.rowner = rowner; // if this value is null it means same owner as that of tabel itself
+            this.rtable = rtable;
+            this.columns = columns;
+            this.rcolumns = rcolumns;
+        }
+    }
+
     public final String name;
     public final List<ColumnModel> columns;
     public final boolean temporary;
@@ -114,6 +130,16 @@ public class TableModel {
             if (cm instanceof UniqueKeyModel) {
                 UniqueKeyModel km = (UniqueKeyModel) cm;
                 b.append(" unique (").append(String.join(", ", km.columns)).append(")");
+            }
+            if (cm instanceof ForeignKeyModel) {
+                ForeignKeyModel fm = (ForeignKeyModel) cm;
+                b.append(" foreign key (").append(String.join(", ", fm.columns)).append(")");
+                b.append(" references ");
+                if (fm.rowner != null) {
+                    b.append(fm.rowner).append(".");
+                }
+                b.append(fm.rtable);
+                b.append("(").append(String.join(", ", fm.rcolumns)).append(")");
             }
         }
         b.append(")");

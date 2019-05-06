@@ -205,7 +205,8 @@ public class SourceCodeGetter {
         this.source_repo.add(new DBObject("TABLE", table_name), source);
     }
 
-    void getKeyConstraints(ArrayList<String> tables, Map<String, TableModel.PrimaryKeyModel> primaryKeys, Map<String, ArrayList<TableModel.UniqueKeyModel>> uniqueKeys) throws SQLException {
+    void getKeyConstraints(ArrayList<String> tables, Map<String, TableModel.PrimaryKeyModel> primaryKeys,
+            Map<String, ArrayList<TableModel.ConstraintModel>> constraints) throws SQLException {
 
         String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
         String constraintColView = useDBAViews ? "dba_cons_columns" : "all_cons_columns";
@@ -235,10 +236,10 @@ public class SourceCodeGetter {
                             if (constraint_type.equals("P")) {
                                 primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
                             } else {
-                                if (!uniqueKeys.containsKey(table_name)) {
-                                    uniqueKeys.put(table_name, new ArrayList<>());
+                                if (!constraints.containsKey(table_name)) {
+                                    constraints.put(table_name, new ArrayList<>());
                                 }
-                                uniqueKeys.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
+                                constraints.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
                             }
                         }
                         constraint_name = cnew;
@@ -252,19 +253,87 @@ public class SourceCodeGetter {
                     if (constraint_type.equals("P")) {
                         primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
                     } else {
-                        if (!uniqueKeys.containsKey(table_name)) {
-                            uniqueKeys.put(table_name, new ArrayList<>());
+                        if (!constraints.containsKey(table_name)) {
+                            constraints.put(table_name, new ArrayList<>());
                         }
-                        uniqueKeys.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
+                        constraints.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
                     }
                 }
             }
         }
     }
 
-    Map<String, ArrayList<TableModel.ConstraintModel>> getCheckConstraints(ArrayList<String> tables) throws SQLException {
+    void getForeignKeyConstraints(ArrayList<String> tables, Map<String, ArrayList<TableModel.ConstraintModel>> constraints) throws SQLException {
         String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
-        Map<String, ArrayList<TableModel.ConstraintModel>> result = new HashMap<>();
+        String constraintColView = useDBAViews ? "dba_cons_columns" : "all_cons_columns";
+        String sql = "select sr.CONSTRAINT_NAME, sr.TABLE_NAME, src.COLUMN_NAME,\n"
+                + "sp.CONSTRAINT_NAME as rCONSTRAINT_NAME, sp.owner as rowner, sp.TABLE_NAME as rtable_name, spc.COLUMN_NAME as rcolumn_name\n"
+                + "from $constraints sr inner join $constraints sp\n"
+                + "on sr.r_owner = sp.owner and sr.r_constraint_name = sp.constraint_name\n"
+                + "inner join $cons_columns src on src.CONSTRAINT_NAME = sr.CONSTRAINT_NAME\n"
+                + "and src.OWNER = sr.OWNER\n"
+                + "inner join $cons_columns spc on spc.CONSTRAINT_NAME = sp.CONSTRAINT_NAME\n"
+                + "and spc.OWNER = sp.OWNER\n"
+                + "and spc.POSITION = src.POSITION\n"
+                + "where sr.CONSTRAINT_TYPE = 'R'\n"
+                + " and sr.table_name in (select column_value from table(?))"
+                + " and sr.owner = ?"
+                + " order by sr.constraint_name, src.position";
+        sql = sql.replace("$constraints", constraintView);
+        sql = sql.replace("$cons_columns", constraintColView);
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            ArrayList<String> columns = null;
+            ArrayList<String> rcolumns = null;
+            String constraint_name = null;
+            String table_name = null;
+            String rtable_name = null;
+            String rowner = null;
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String cnew = rs.getString("CONSTRAINT_NAME");
+                    if (!cnew.equals(constraint_name)) {
+                        if (constraint_name != null) {
+
+                            if (!constraints.containsKey(table_name)) {
+                                constraints.put(table_name, new ArrayList<>());
+                            }
+                            constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
+                        }
+
+                        constraint_name = cnew;
+                        table_name = rs.getString("TABLE_NAME");
+                        rtable_name = rs.getString("RTABLE_NAME");
+                        rowner = rs.getString("ROWNER");
+                        if (rowner.equals(this.owner)) {
+                            rowner = null;
+                        }
+
+                        columns = new ArrayList<>();
+                        rcolumns = new ArrayList<>();
+                    }
+                    columns.add(rs.getString("COLUMN_NAME"));
+                    rcolumns.add(rs.getString("rCOLUMN_NAME"));
+                }
+
+            }
+            if (constraint_name != null) {
+
+                if (!constraints.containsKey(table_name)) {
+                    constraints.put(table_name, new ArrayList<>());
+                }
+                constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
+            }
+        }
+    }
+
+    Map<String, ArrayList<TableModel.ConstraintModel>> getCheckConstraints(ArrayList<String> tables,
+            Map<String, ArrayList<TableModel.ConstraintModel>> constraints) throws SQLException {
+        String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
                 "select constraint_name, table_name, search_condition \n"
                 + " from " + constraintView + " c\n"
@@ -285,7 +354,7 @@ public class SourceCodeGetter {
                     String tableName = rs.getString("TABLE_NAME");
                     if (!tableName.equals(old_table_name)) {
                         if (constraintList != null) {
-                            result.put(old_table_name, constraintList);
+                            constraints.put(old_table_name, constraintList);
                         }
                         old_table_name = tableName;
                         constraintList = new ArrayList<>();
@@ -296,20 +365,21 @@ public class SourceCodeGetter {
                     constraintList.add(new TableModel.CheckConstraintModel(constraintName, canonicalSource));
                 }
                 if (constraintList != null) {
-                    result.put(old_table_name, constraintList);
+                    constraints.put(old_table_name, constraintList);
                 }
 
             }
-            return result;
+            return constraints;
         }
     }
 
     void loadTableSources(ArrayList<String> tables) throws SQLException {
 
-        Map<String, ArrayList<TableModel.ConstraintModel>> cd = getCheckConstraints(tables);
+        Map<String, ArrayList<TableModel.ConstraintModel>> constraints = new HashMap<>();
         Map<String, TableModel.PrimaryKeyModel> primaryKeys = new HashMap<>();
-        Map<String, ArrayList<TableModel.UniqueKeyModel>> uniqueKeys = new HashMap<>();
-        getKeyConstraints(tables, primaryKeys, uniqueKeys);
+        getCheckConstraints(tables, constraints);
+        getKeyConstraints(tables, primaryKeys, constraints);
+        getForeignKeyConstraints(tables, constraints);
 
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
@@ -334,13 +404,11 @@ public class SourceCodeGetter {
                 while (rs.next()) {
                     String table_name = rs.getString(1);
                     if (old_table_name != null && !table_name.equals(old_table_name)) {
-                        List<TableModel.ConstraintModel> x = cd.getOrDefault(old_table_name, new ArrayList<>());
-                        x.addAll(uniqueKeys.getOrDefault(old_table_name, new ArrayList<>()));
 
                         einpacken(old_table_name, duration != null,
                                 "SYS$SESSION".equals(duration),
                                 columns,
-                                cd.get(old_table_name),
+                                constraints.getOrDefault(old_table_name, new ArrayList<>()),
                                 primaryKeys.get(old_table_name)
                         );
                         columns.clear();
@@ -370,12 +438,10 @@ public class SourceCodeGetter {
                     columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                 }
                 if (old_table_name != null) {
-                    List<TableModel.ConstraintModel> x = cd.getOrDefault(old_table_name, new ArrayList<>());
-                    x.addAll(uniqueKeys.getOrDefault(old_table_name, new ArrayList<>()));
                     einpacken(old_table_name, duration != null,
                             "SYS$SESSION".equals(duration),
                             columns,
-                            x,
+                            constraints.getOrDefault(old_table_name, new ArrayList<>()),
                             primaryKeys.get(old_table_name)
                     );
                 }
