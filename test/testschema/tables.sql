@@ -61,7 +61,9 @@ create table table3
 
 create table table7 
 ( x integer, 
-  constraint x check (x>0));
+  z number,
+  constraint x check (x>0),
+  constraint fk_table7 foreign key (x) references table3b(u));
 
  
  

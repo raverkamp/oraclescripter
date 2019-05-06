@@ -287,7 +287,6 @@ public class Comparer {
                 consModels.add(cm);
             }
             if (rp instanceof Ast.PrimaryKeyDefinition) {
-                // fixme: this is a hack to get the underlying sequence of the constraint condition
                 Ast.PrimaryKeyDefinition pk = (Ast.PrimaryKeyDefinition) rp;
                 String pkname = pk.name.val;
                 List<String> columns = pk.columns.stream().map(x -> x.val).collect(Collectors.toList());
@@ -298,15 +297,31 @@ public class Comparer {
 
             }
             if (rp instanceof Ast.UniqueKeyDefinition) {
-                // fixme: this is a hack to get the underlying sequence of the constraint condition
                 Ast.UniqueKeyDefinition uk = (Ast.UniqueKeyDefinition) rp;
-                String pkname = uk.name.val;
+                String ukname = uk.name.val;
                 List<String> columns = uk.columns.stream().map(x -> x.val).collect(Collectors.toList());
-                consModels.add(new TableModel.UniqueKeyModel(pkname, columns));
-
+                consModels.add(new TableModel.UniqueKeyModel(ukname, columns));
+            }
+            if (rp instanceof Ast.ForeignKeyDefinition) {
+                Ast.ForeignKeyDefinition fk = (Ast.ForeignKeyDefinition) rp;
+                String fkname = fk.name.val;
+                List<String> columns = fk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+                List<String> rcolumns = fk.rcolumns.stream().map(x -> x.val).collect(Collectors.toList());
+                String rtableOwner = fk.rtable.owner == null ? null : fk.rtable.owner.val;
+                consModels.add(new TableModel.ForeignKeyModel(
+                        fkname,
+                        rtableOwner,
+                        fk.rtable.name.val,
+                        columns,
+                        rcolumns));
             }
         }
-        return new TableModel(tableName, r.v.temporary, r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE), cms, consModels, primaryKey);
+        return new TableModel(tableName,
+                r.v.temporary,
+                r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE),
+                cms,
+                consModels,
+                primaryKey);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
