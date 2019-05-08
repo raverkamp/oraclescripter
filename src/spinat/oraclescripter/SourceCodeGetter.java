@@ -193,18 +193,6 @@ public class SourceCodeGetter {
         }
     }
 
-    void einpacken(String table_name,
-            boolean temporary,
-            boolean commitPreserveRows,
-            List<TableModel.ColumnModel> columns,
-            List<TableModel.ConstraintModel> checkConstraints,
-            TableModel.PrimaryKeyModel primaryKey) {
-        TableModel m = new TableModel(table_name, temporary, commitPreserveRows, columns, checkConstraints, primaryKey);
-        String source = m.ConvertToCanonicalString();
-        this.table_sources.put(table_name, source);
-        this.source_repo.add(new DBObject("TABLE", table_name), source);
-    }
-
     void getKeyConstraints(ArrayList<String> tables, Map<String, TableModel.PrimaryKeyModel> primaryKeys,
             Map<String, ArrayList<TableModel.ConstraintModel>> constraints) throws SQLException {
 
@@ -218,38 +206,25 @@ public class SourceCodeGetter {
                 + " where c.constraint_type in ('U', 'P') "
                 + " and c.table_name in (select column_value from table(?))"
                 + " and c.owner = ?"
-                + " order by c.owner, c.table_name, c.constraint_name, ck.position";
+                + " order by c.table_name, c.constraint_name, ck.position";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
             String[] arg = tables.toArray(new String[0]);
             java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setArray(1, a);
             ps.setString(2, this.owner);
-            ArrayList<String> columns = null;
-            String constraint_name = null;
-            String table_name = null;
-            String constraint_type = null;
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String cnew = rs.getString("CONSTRAINT_NAME");
-                    if (!cnew.equals(constraint_name)) {
-                        if (constraint_name != null) {
-                            if (constraint_type.equals("P")) {
-                                primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
-                            } else {
-                                if (!constraints.containsKey(table_name)) {
-                                    constraints.put(table_name, new ArrayList<>());
-                                }
-                                constraints.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
-                            }
-                        }
-                        constraint_name = cnew;
-                        table_name = rs.getString("TABLE_NAME");
-                        constraint_type = rs.getString("CONSTRAINT_TYPE");
-                        columns = new ArrayList<>();
+            try (ResultSet rsx = ps.executeQuery()) {
+                ArrayList<Record> l = OraUtil.resultSetToList(rsx);
+                ArrayList<ArrayList<Record>> rll = Record.group(l, new String[]{"TABLE_NAME", "CONSTRAINT_NAME"});
+                for (ArrayList<Record> rl : rll) {
+                    Record r0 = rl.get(0);
+
+                    String constraint_name = r0.getString("CONSTRAINT_NAME");
+                    String table_name = r0.getString("TABLE_NAME");
+                    String constraint_type = r0.getString("CONSTRAINT_TYPE");
+                    ArrayList<String> columns = new ArrayList<>();
+                    for (Record r : rl) {
+                        columns.add(r.getString("COLUMN_NAME"));
                     }
-                    columns.add(rs.getString("COLUMN_NAME"));
-                }
-                if (constraint_name != null) {
                     if (constraint_type.equals("P")) {
                         primaryKeys.put(table_name, new TableModel.PrimaryKeyModel(constraint_name, columns));
                     } else {
@@ -259,6 +234,7 @@ public class SourceCodeGetter {
                         constraints.get(table_name).add(new TableModel.UniqueKeyModel(constraint_name, columns));
                     }
                 }
+
             }
         }
     }
@@ -430,12 +406,17 @@ public class SourceCodeGetter {
                         }
                         columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                     }
-                    einpacken(table_name, duration != null,
-                            "SYS$SESSION".equals(duration),
+
+                    TableModel m = new TableModel(table_name,
+                            duration != null,
+                            " SYS$SESSION".equals(duration),
                             columns,
-                            constraints.getOrDefault(old_table_name, new ArrayList<>()),
-                            primaryKeys.get(old_table_name)
-                    );
+                            constraints.getOrDefault(table_name, new ArrayList<>()),
+                            primaryKeys.get(table_name));
+                    String source = m.ConvertToCanonicalString();
+                    this.table_sources.put(table_name, source);
+                    this.source_repo.add(new DBObject("TABLE", table_name), source);
+
                 }
             }
         }
