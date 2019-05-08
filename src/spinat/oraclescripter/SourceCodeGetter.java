@@ -398,47 +398,39 @@ public class SourceCodeGetter {
             ps.setString(2, this.owner);
             String old_table_name = null;
             StringBuilder b = new StringBuilder();
-            ArrayList<TableModel.ColumnModel> columns = new ArrayList<>();
-            String duration = null;
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String table_name = rs.getString(1);
-                    if (old_table_name != null && !table_name.equals(old_table_name)) {
 
-                        einpacken(old_table_name, duration != null,
-                                "SYS$SESSION".equals(duration),
-                                columns,
-                                constraints.getOrDefault(old_table_name, new ArrayList<>()),
-                                primaryKeys.get(old_table_name)
-                        );
-                        columns.clear();
-                    }
-                    old_table_name = table_name;
-                    duration = rs.getString("DURATION");
-                    String columnName = rs.getString("COLUMN_NAME");
-                    String dataType = rs.getString("DATA_TYPE");
-                    boolean nullable = rs.getString("NULLABLE").equals("Y");
-                    final String type;
-                    if (dataType.equals("VARCHAR2")) {
-                        int charLength = rs.getInt("CHAR_LENGTH");
-                        String charUsed = rs.getString("CHAR_USED");
-                        String charOrByte = charUsed.equals("B") ? "BYTE" : "CHAR";
-                        type = "VARCHAR2(" + charLength + " " + charOrByte + ")";
-                    } else if (dataType.equals("NUMBER")) {
-                        String dp = rs.getString("DATA_PRECISION");
-                        String ds = rs.getString("DATA_SCALE");
-                        if (dp == null) {
-                            type = "NUMBER";
+            try (ResultSet rsx = ps.executeQuery()) {
+                ArrayList<Record> l = OraUtil.resultSetToList(rsx);
+                ArrayList<ArrayList<Record>> gl = Record.group(l, new String[]{"TABLE_NAME"});
+                for (ArrayList<Record> rl : gl) {
+                    Record r0 = rl.get(0);
+                    String table_name = r0.getString("TABLE_NAME");
+                    String duration = r0.getString("DURATION");
+                    ArrayList<TableModel.ColumnModel> columns = new ArrayList<>();
+                    for (Record r : rl) {
+                        String columnName = r.getString("COLUMN_NAME");
+                        String dataType = r.getString("DATA_TYPE");
+                        boolean nullable = r.getString("NULLABLE").equals("Y");
+                        final String type;
+                        if (dataType.equals("VARCHAR2")) {
+                            int charLength = r.getInteger("CHAR_LENGTH");
+                            String charUsed = r.getString("CHAR_USED");
+                            String charOrByte = charUsed.equals("B") ? "BYTE" : "CHAR";
+                            type = "VARCHAR2(" + charLength + " " + charOrByte + ")";
+                        } else if (dataType.equals("NUMBER")) {
+                            Integer dp = r.getInteger("DATA_PRECISION");
+                            Integer ds = r.getInteger("DATA_SCALE");
+                            if (dp == null) {
+                                type = "NUMBER";
+                            } else {
+                                type = "NUMBER(" + dp + "," + ds + ")";
+                            }
                         } else {
-                            type = "NUMBER(" + dp + "," + ds + ")";
+                            type = dataType;
                         }
-                    } else {
-                        type = dataType;
+                        columns.add(new TableModel.ColumnModel(columnName, type, nullable));
                     }
-                    columns.add(new TableModel.ColumnModel(columnName, type, nullable));
-                }
-                if (old_table_name != null) {
-                    einpacken(old_table_name, duration != null,
+                    einpacken(table_name, duration != null,
                             "SYS$SESSION".equals(duration),
                             columns,
                             constraints.getOrDefault(old_table_name, new ArrayList<>()),
@@ -446,7 +438,6 @@ public class SourceCodeGetter {
                     );
                 }
             }
-
         }
     }
 
