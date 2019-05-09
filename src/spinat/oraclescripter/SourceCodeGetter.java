@@ -262,52 +262,33 @@ public class SourceCodeGetter {
             java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setArray(1, a);
             ps.setString(2, this.owner);
-            ArrayList<String> columns = null;
-            ArrayList<String> rcolumns = null;
-            String constraint_name = null;
-            String table_name = null;
-            String rtable_name = null;
-            String rowner = null;
 
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String cnew = rs.getString("CONSTRAINT_NAME");
-                    if (!cnew.equals(constraint_name)) {
-                        if (constraint_name != null) {
+            try (ResultSet rsx = ps.executeQuery()) {
+                ArrayList<Record> l = OraUtil.resultSetToList(rsx);
+                ArrayList<ArrayList<Record>> rll = Record.group(l, new String[]{"TABLE_NAME", "CONSTRAINT_NAME"});
+                for (ArrayList<Record> rl : rll) {
+                    Record r0 = rl.get(0);
+                    String constraint_name = r0.getString("CONSTRAINT_NAME");
+                    String table_name = r0.getString("TABLE_NAME");
+                    String rtable_name = r0.getString("RTABLE_NAME");
+                    String rowner = r0.getString("ROWNER");
+                    ArrayList<String> columns = new ArrayList<>();
+                    ArrayList<String> rcolumns = new ArrayList<>();
 
-                            if (!constraints.containsKey(table_name)) {
-                                constraints.put(table_name, new ArrayList<>());
-                            }
-                            constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
-                        }
-
-                        constraint_name = cnew;
-                        table_name = rs.getString("TABLE_NAME");
-                        rtable_name = rs.getString("RTABLE_NAME");
-                        rowner = rs.getString("ROWNER");
-                        if (rowner.equals(this.owner)) {
-                            rowner = null;
-                        }
-
-                        columns = new ArrayList<>();
-                        rcolumns = new ArrayList<>();
+                    for (Record r : rl) {
+                        columns.add(r.getString("COLUMN_NAME"));
+                        rcolumns.add(r.getString("RCOLUMN_NAME"));
                     }
-                    columns.add(rs.getString("COLUMN_NAME"));
-                    rcolumns.add(rs.getString("rCOLUMN_NAME"));
+                    if (!constraints.containsKey(table_name)) {
+                        constraints.put(table_name, new ArrayList<>());
+                    }
+                    constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
                 }
-
-            }
-            if (constraint_name != null) {
-
-                if (!constraints.containsKey(table_name)) {
-                    constraints.put(table_name, new ArrayList<>());
-                }
-                constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
             }
         }
     }
 
-    Map<String, ArrayList<TableModel.ConstraintModel>> getCheckConstraints(ArrayList<String> tables,
+    void getCheckConstraints(ArrayList<String> tables,
             Map<String, ArrayList<TableModel.ConstraintModel>> constraints) throws SQLException {
         String constraintView = useDBAViews ? "dba_constraints" : "all_constraints";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
@@ -323,29 +304,19 @@ public class SourceCodeGetter {
             java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setArray(1, a);
             ps.setString(2, this.owner);
-            String old_table_name = null;
-            ArrayList<TableModel.ConstraintModel> constraintList = null;
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     String tableName = rs.getString("TABLE_NAME");
-                    if (!tableName.equals(old_table_name)) {
-                        if (constraintList != null) {
-                            constraints.put(old_table_name, constraintList);
-                        }
-                        old_table_name = tableName;
-                        constraintList = new ArrayList<>();
+                    if (!constraints.containsKey(tableName)) {
+                        constraints.put(tableName, new ArrayList<>());
                     }
                     String constraintName = rs.getString("CONSTRAINT_NAME");
                     String s = rs.getString("SEARCH_CONDITION");
                     String canonicalSource = AstHelper.toCanonicalString(s);
-                    constraintList.add(new TableModel.CheckConstraintModel(constraintName, canonicalSource));
-                }
-                if (constraintList != null) {
-                    constraints.put(old_table_name, constraintList);
-                }
 
+                    constraints.get(tableName).add(new TableModel.CheckConstraintModel(constraintName, canonicalSource));
+                }
             }
-            return constraints;
         }
     }
 
@@ -372,7 +343,7 @@ public class SourceCodeGetter {
             java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
             ps.setArray(1, a);
             ps.setString(2, this.owner);
-            String old_table_name = null;
+
             StringBuilder b = new StringBuilder();
 
             try (ResultSet rsx = ps.executeQuery()) {
