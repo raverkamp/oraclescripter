@@ -320,6 +320,53 @@ public class SourceCodeGetter {
         }
     }
 
+    Map<String, String> loadTableComments(ArrayList<String> tables) throws SQLException {
+        String tableView = useDBAViews ? "dba_tab_comments" : "all_tab_comments";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select t.table_name, t.comments "
+                + " from " + tableView + " t "
+                + " where t.table_name in (select column_value from table(?))"
+                + " and t.owner = ?"
+                + " and t.comments is not null")) {
+            ps.setFetchSize(10000);
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                Map<String, String> res = new HashMap<>();
+                while (rs.next()) {
+                    res.put(rs.getString("TABLE_NAME"), rs.getString("COMMENTS"));
+                }
+                return res;
+            }
+        }
+    }
+
+    Map<String, String> loadColumnComments(ArrayList<String> tables) throws SQLException {
+        String colView = useDBAViews ? "dba_col_comments" : "all_col_comments";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
+                "select t.table_name, t.column_name, t.comments "
+                + " from " + colView + " t "
+                + " where t.table_name in (select column_value from table(?))"
+                + " and t.owner = ?"
+                + " and t.comments is not null")) {
+            ps.setFetchSize(10000);
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                Map<String, String> res = new HashMap<>();
+                while (rs.next()) {
+                    String key = rs.getString("TABLE_NAME") + "\n" + rs.getString("COLUMN_NAME");
+                    res.put(key, rs.getString("COMMENTS"));
+                }
+                return res;
+            }
+        }
+    }
+
     void loadTableSources(ArrayList<String> tables) throws SQLException {
 
         Map<String, ArrayList<TableModel.ConstraintModel>> constraints = new HashMap<>();
@@ -327,6 +374,9 @@ public class SourceCodeGetter {
         getCheckConstraints(tables, constraints);
         getKeyConstraints(tables, primaryKeys, constraints);
         getForeignKeyConstraints(tables, constraints);
+
+        Map<String, String> tabComments = loadTableComments(tables);
+        Map<String, String> colComments = loadColumnComments(tables);
 
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
@@ -375,7 +425,8 @@ public class SourceCodeGetter {
                         } else {
                             type = dataType;
                         }
-                        columns.add(new TableModel.ColumnModel(columnName, type, nullable));
+                        String key = table_name + "\n" + columnName;
+                        columns.add(new TableModel.ColumnModel(columnName, type, nullable, colComments.get(key)));
                     }
 
                     TableModel m = new TableModel(table_name,
@@ -383,7 +434,8 @@ public class SourceCodeGetter {
                             " SYS$SESSION".equals(duration),
                             columns,
                             constraints.getOrDefault(table_name, new ArrayList<>()),
-                            primaryKeys.get(table_name));
+                            primaryKeys.get(table_name),
+                            tabComments.get(table_name));
                     String source = m.ConvertToCanonicalString();
                     this.table_sources.put(table_name, source);
                     this.source_repo.add(new DBObject("TABLE", table_name), source);

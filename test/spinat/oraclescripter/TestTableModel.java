@@ -17,13 +17,13 @@ public class TestTableModel {
     @Test
     public void TestConvertToCanonicalString() throws Exception {
         ArrayList<TableModel.ColumnModel> l = new ArrayList<>();
-        l.add(new TableModel.ColumnModel("C1", "number", true));
-        l.add(new TableModel.ColumnModel("C2", "bla", false));
-        l.add(new TableModel.ColumnModel("C3", "xyz", true));
+        l.add(new TableModel.ColumnModel("C1", "number", true, ""));
+        l.add(new TableModel.ColumnModel("C2", "bla", false, ""));
+        l.add(new TableModel.ColumnModel("C3", "xyz", true, ""));
         ArrayList<TableModel.ConstraintModel> cl = new ArrayList<>();
         String x = AstHelper.toCanonicalString(" x*y /  8 /* some commnet */");
         cl.add(new TableModel.CheckConstraintModel("CC1", x));
-        TableModel m = new TableModel("table1", false, false, l, cl, null);
+        TableModel m = new TableModel("table1", false, false, l, cl, null, "");
         String s = m.ConvertToCanonicalString();
         assertEquals(s, "create table table1(\n"
                 + "C1 number,\n"

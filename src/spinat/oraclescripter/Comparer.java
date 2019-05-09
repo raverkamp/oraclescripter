@@ -274,7 +274,7 @@ public class Comparer {
                 String columnName = cd.name.val;
                 boolean nullable = cd.nullable;
                 String typeName = dataTypeToString(cd.datatype);
-                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable);
+                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, null);
                 cms.add(cm);
             }
             if (rp instanceof Ast.CheckConstraintDefinition) {
@@ -321,7 +321,8 @@ public class Comparer {
                 r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE),
                 cms,
                 consModels,
-                primaryKey);
+                primaryKey,
+                null);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {

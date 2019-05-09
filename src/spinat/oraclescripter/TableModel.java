@@ -12,11 +12,13 @@ public class TableModel {
         public final String name;
         public final String datatype;
         public final boolean nullable;
+        public final String comment;
 
-        public ColumnModel(String name, String datatype, boolean nullable) {
+        public ColumnModel(String name, String datatype, boolean nullable, String comment) {
             this.name = name;
             this.datatype = datatype;
             this.nullable = nullable;
+            this.comment = comment;
         }
     }
 
@@ -81,13 +83,15 @@ public class TableModel {
     public final boolean onCommitPreserve;
     public final List<ConstraintModel> constraints;
     public final PrimaryKeyModel primaryKey;
+    public final String comment;
 
     public TableModel(String name,
             boolean temporary,
             boolean onCommitPreserve,
             List<ColumnModel> columns,
             List<ConstraintModel> constraints,
-            PrimaryKeyModel primaryKey) {
+            PrimaryKeyModel primaryKey,
+            String comment) {
         this.name = name;
         this.columns = columns;
         this.temporary = temporary;
@@ -98,6 +102,7 @@ public class TableModel {
             this.constraints = new ArrayList<>();
         }
         this.primaryKey = primaryKey;
+        this.comment = comment;
     }
 
     public String ConvertToCanonicalString() {
@@ -151,6 +156,14 @@ public class TableModel {
             }
         }
         b.append(";\n");
+        if (this.comment != null && !this.comment.isEmpty()) {
+            b.append("comment on table " + this.name + " is '" + this.comment.replace("'", "''") + "';\n");
+        }
+        for (ColumnModel cm : this.columns) {
+            if (cm.comment != null && !cm.comment.isEmpty()) {
+                b.append("comment on column " + this.name + "." + cm.name + " is '" + cm.comment.replace("'", "''") + "';\n");
+            }
+        }
         return b.toString();
     }
 
