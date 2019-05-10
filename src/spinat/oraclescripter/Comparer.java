@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import oracle.jdbc.OracleConnection;
 import spinat.plsqlparser.Ast;
 import spinat.plsqlparser.Ast.RelationalProperty;
+import spinat.plsqlparser.Parser;
 import spinat.plsqlparser.Res;
 import spinat.plsqlparser.Scanner;
 import spinat.plsqlparser.Seq;
@@ -265,6 +266,23 @@ public class Comparer {
         spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
         Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
         String tableName = r.v.name.name.val;
+        String tableComment = null;
+        Map<String, String> columnComments = new HashMap<>();
+        for (int i = 1; i < l.size(); i++) {
+            Seq sx = Scanner.scanToSeq(l.get(i));
+            Res<Ast.CommentOnTable> ct = p.pCommentOnTable.pa(sx);
+            if (ct != null) {
+                tableComment = ct.v.comment.val;
+                continue;
+            }
+            Res<Ast.CommentOnColumn> cc = p.pCommentOnColumn.pa(sx);
+            if (cc != null) {
+                columnComments.put(cc.v.column.val, cc.v.comment.val);
+                continue;
+            }
+
+        }
+
         ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
         ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
         TableModel.PrimaryKeyModel primaryKey = null;
@@ -274,7 +292,7 @@ public class Comparer {
                 String columnName = cd.name.val;
                 boolean nullable = cd.nullable;
                 String typeName = dataTypeToString(cd.datatype);
-                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, null);
+                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, columnComments.get(columnName));
                 cms.add(cm);
             }
             if (rp instanceof Ast.CheckConstraintDefinition) {
@@ -322,12 +340,13 @@ public class Comparer {
                 cms,
                 consModels,
                 primaryKey,
-                null);
+                tableComment);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
         Map<String, ArrayList<String>> tableSources = new HashMap<>();
 
+        Parser p = new Parser();
         SqlPlus session = new SqlPlus(filePath, baseDir);
         ArrayList<Snippet> l = session.process();
         SourceRepo repo = new SourceRepo();
@@ -352,10 +371,31 @@ public class Comparer {
                     tableSources.get(ci.name).add(sn.text);
                 }
                 break;
-            }
+                case OTHER: {
+                    Seq s = Scanner.scanToSeq(sn.text);
+                    final String tableName;
+                    Res<Ast.CommentOnColumn> rc = p.pCommentOnColumn.pa(s);
+                    if (rc != null) {
+                        tableName = rc.v.tableName.name.val;
+                    } else {
+                        Res<Ast.CommentOnTable> rt = p.pCommentOnTable.pa(s);
+                        if (rt != null) {
+                            tableName = rt.v.tableName.name.val;
+                        } else {
+                            continue;
+                        }
+                    }
 
+                    if (!tableSources.containsKey(tableName)) {
+                        tableSources.put(tableName, new ArrayList<>());
+                    }
+                    tableSources.get(tableName).add(sn.text);
+                }
+            }
         }
-        for (ArrayList<String> tl : tableSources.values()) {
+
+        for (ArrayList<String> tl
+                : tableSources.values()) {
             TableModel tm = tableModelFromSources(tl);
             String canoicalSource = tm.ConvertToCanonicalString();
             DBObject dbo = new DBObject("TABLE", tm.name);

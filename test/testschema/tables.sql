@@ -65,5 +65,7 @@ create table table7
   constraint x check (x>0),
   constraint fk_table7 foreign key (x) references table3b(u));
 
+ comment on table table7 is 'hallo';
  
+ comment on column table7.x is 'bla bla';
  

@@ -36,3 +36,6 @@ create table a (x integer,
                 y varchar2(200);
 
 alter table bla add;
+
+comment on table xyz is 'toll!';
+comment on column xyz.abc is 'super ; ';
