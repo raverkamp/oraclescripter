@@ -1,7 +1,7 @@
 package spinat.oraclescripter;
 
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.stream.Collectors;
 import java.util.List;
 
 // the model of a database table
@@ -90,6 +90,19 @@ public class TableModel {
         }
     }
 
+    public final static class ExternalTableData {
+
+        public final String directory;
+        public final String type;
+        public final List<String> locations;
+
+        public ExternalTableData(String directory, String type, List<String> locations) {
+            this.directory = directory;
+            this.type = type;
+            this.locations = locations;
+        }
+    }
+
     public final String name;
     public final List<ColumnModel> columns;
     public final boolean temporary;
@@ -98,6 +111,7 @@ public class TableModel {
     public final PrimaryKeyModel primaryKey;
     public final String comment;
     public final List<IndexModel> indexes;
+    public final ExternalTableData externalTableData;
 
     public TableModel(String name,
             boolean temporary,
@@ -106,7 +120,8 @@ public class TableModel {
             List<ConstraintModel> constraints,
             PrimaryKeyModel primaryKey,
             String comment,
-            List<IndexModel> indexes
+            List<IndexModel> indexes,
+            ExternalTableData externalTableData
     ) {
         this.name = name;
         this.columns = columns;
@@ -120,6 +135,7 @@ public class TableModel {
         this.primaryKey = primaryKey;
         this.comment = comment;
         this.indexes = (indexes == null) ? new ArrayList<IndexModel>() : indexes;
+        this.externalTableData = externalTableData;
     }
 
     private String ConvertIndexToCanonicalString(IndexModel m) {
@@ -179,6 +195,14 @@ public class TableModel {
             } else {
                 b.append(" on commit delete rows");
             }
+        }
+        if (this.externalTableData != null) {
+            b.append("\n organization external\n(type oracle_loader default directory "
+                    + Helper.maybeOracleQuote(this.externalTableData.directory)
+                    + "\nlocation(");
+            b.append(String.join(", ", this.externalTableData.locations.stream().map(y -> "'" + y + "'").collect(Collectors.toList())));
+            b.append("))");
+
         }
         b.append(";\n");
         if (this.comment != null && !this.comment.isEmpty()) {

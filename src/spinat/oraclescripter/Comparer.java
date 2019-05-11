@@ -347,6 +347,15 @@ public class Comparer {
                         rcolumns));
             }
         }
+        final TableModel.ExternalTableData extTableData;
+        Ast.OrganizationExternal e = r.v.organisationExternal;
+        if (e == null) {
+            extTableData = null;
+        } else {
+            extTableData = new TableModel.ExternalTableData(e.defaultDirectory.val, e.type, e.location.stream().map(x -> x.val).collect(Collectors.toList()));
+
+        }
+
         return new TableModel(tableName,
                 r.v.temporary,
                 r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE),
@@ -354,7 +363,8 @@ public class Comparer {
                 consModels,
                 primaryKey,
                 tableComment,
-                indexes);
+                indexes,
+                extTableData);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {

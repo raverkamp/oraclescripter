@@ -424,6 +424,45 @@ public class SourceCodeGetter {
         }
     }
 
+    Map<String, TableModel.ExternalTableData> getExternalTableData(ArrayList<String> tables) throws SQLException {
+        String extTableView = this.useDBAViews ? "dba_external_tables" : "all_external_tables";
+        String extLocations = this.useDBAViews ? "dba_external_locations" : "all_external_locations";
+        Map<String, TableModel.ExternalTableData> res = new HashMap<>();
+        String sql = "select t.owner, t.table_name, type_name, default_directory_name, l.location\n"
+                + "from " + extTableView + " t \n"
+                + "left join " + extLocations + " l \n"
+                + "on l.table_name = t.table_name \n"
+                + "and l.owner = t.owner\n"
+                + " where t.table_name in (select column_value from table(?))"
+                + " and t.owner = ?"
+                + "order by owner, table_name, location";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            try (ResultSet rsx = ps.executeQuery()) {
+                ArrayList<Record> l = OraUtil.resultSetToList(rsx);
+                ArrayList<ArrayList<Record>> gl = Record.group(l, new String[]{"TABLE_NAME"});
+                for (ArrayList<Record> lr : gl) {
+                    Record r0 = lr.get(0);
+                    String tableName = r0.getString("TABLE_NAME");
+                    String typeName = r0.getString("TYPE_NAME");
+                    String defaultDirectory = r0.getString("DEFAULT_DIRECTORY_NAME");
+                    ArrayList<String> locations = new ArrayList<>();
+                    if (r0.getString("LOCATION") != null) {
+                        for (Record r : lr) {
+                            locations.add(r.getString("LOCATION"));
+                        }
+                    }
+                    res.put(tableName, new TableModel.ExternalTableData(defaultDirectory, typeName, locations));
+
+                }
+            }
+        }
+        return res;
+    }
+
     void loadTableSources(ArrayList<String> tables) throws SQLException {
 
         Map<String, ArrayList<TableModel.ConstraintModel>> constraints = new HashMap<>();
@@ -439,6 +478,7 @@ public class SourceCodeGetter {
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
 
         Map<String, ArrayList<TableModel.IndexModel>> indexes = getIndexes(tables);
+        Map<String, TableModel.ExternalTableData> externalTableData = getExternalTableData(tables);
 
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
                 "select t.table_name, t.duration, column_name, data_type,char_length, "
@@ -495,7 +535,8 @@ public class SourceCodeGetter {
                             constraints.getOrDefault(table_name, new ArrayList<>()),
                             primaryKeys.get(table_name),
                             tabComments.get(table_name),
-                            indexes.get(table_name));
+                            indexes.get(table_name),
+                            externalTableData.get(table_name));
                     String source = m.ConvertToCanonicalString();
                     this.table_sources.put(table_name, source);
                     this.source_repo.add(new DBObject("TABLE", table_name), source);
