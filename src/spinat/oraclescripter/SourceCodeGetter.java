@@ -320,6 +320,60 @@ public class SourceCodeGetter {
         }
     }
 
+    Map<String, ArrayList<TableModel.IndexModel>> getIndexes(ArrayList<String> tables) throws SQLException {
+        String indexView = this.useDBAViews ? "DBA_INDEXES" : "ALL_INDEXES";
+        String indexColumnsView = this.useDBAViews ? "DBA_IND_COLUMNS" : "ALL_IND_COLUMNS";
+        String indexColumnsExpressions = this.useDBAViews ? "DBA_IND_EXPRESSIONS" : "ALL_IND_EXPRESSIONS";
+
+        String sql = "select i.index_name, i.index_type, i.table_name, i.uniqueness, c.COLUMN_NAME,e.COLUMN_EXPRESSION, c.COLUMN_POSITION "
+                + "from " + indexView + " i "
+                + " inner join " + indexColumnsView + " c "
+                + "on c.index_owner = i.owner "
+                + " and c.index_name = i.INDEX_NAME "
+                + " left join " + indexColumnsExpressions + " e "
+                + " on e.INDEX_NAME = c.INDEX_NAME "
+                + " and e.INDEX_OWNER = c.INDEX_OWNER "
+                + " and e.COLUMN_POSITION = c.COLUMN_POSITION "
+                + " where i.table_name in (select column_value from table(?))"
+                + " and i.table_owner = ?"
+                + " order by index_name, i.owner, c.column_position";
+        try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
+            ps.setFetchSize(10000);
+            String[] arg = tables.toArray(new String[0]);
+            java.sql.Array a = con.createARRAY("DBMSOUTPUT_LINESARRAY", arg);
+            ps.setArray(1, a);
+            ps.setString(2, this.owner);
+            try (ResultSet rs = ps.executeQuery()) {
+                ArrayList<Record> l = OraUtil.resultSetToList(rs);
+                ArrayList<ArrayList<Record>> gl = Record.group(l, new String[]{"INDEX_NAME"});
+                Map<String, ArrayList<TableModel.IndexModel>> res = new HashMap<>();
+                for (ArrayList<Record> lr : gl) {
+                    Record r0 = lr.get(0);
+                    String indexName = r0.getString("INDEX_NAME");
+                    String tableName = r0.getString("TABLE_NAME");
+                    boolean unqiue = r0.getString("UNIQUENESS").equals("UNIQUE");
+                    ArrayList<String> columns = new ArrayList<>();
+                    for (Record r : lr) {
+                        String ce = r.getString("COLUMN_EXPRESSION");
+                        if (ce == null || ce.isEmpty()) {
+                            columns.add(r.getString("COLUMN_NAME"));
+                        } else {
+                            String cec = AstHelper.toCanonicalString(r.getString("COLUMN_EXPRESSION"));
+                            columns.add(cec);
+                        }
+                    }
+                    if (!res.containsKey(tableName)) {
+                        res.put(tableName, new ArrayList<>());
+                    }
+                    res.get(tableName).add(new TableModel.IndexModel(indexName, columns, unqiue));
+                }
+                return res;
+
+            }
+        }
+
+    }
+
     Map<String, String> loadTableComments(ArrayList<String> tables) throws SQLException {
         String tableView = useDBAViews ? "dba_tab_comments" : "all_tab_comments";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
@@ -381,6 +435,8 @@ public class SourceCodeGetter {
         String columnsView = useDBAViews ? "dba_tab_columns" : "all_tab_columns";
         String tableView = useDBAViews ? "dba_tables" : "all_tables";
 
+        Map<String, ArrayList<TableModel.IndexModel>> indexes = getIndexes(tables);
+
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(
                 "select t.table_name, t.duration, column_name, data_type,char_length, "
                 + " char_used, data_precision, data_scale, nullable \n"
@@ -431,11 +487,12 @@ public class SourceCodeGetter {
 
                     TableModel m = new TableModel(table_name,
                             duration != null,
-                            " SYS$SESSION".equals(duration),
+                            "SYS$SESSION".equals(duration),
                             columns,
                             constraints.getOrDefault(table_name, new ArrayList<>()),
                             primaryKeys.get(table_name),
-                            tabComments.get(table_name));
+                            tabComments.get(table_name),
+                            indexes.get(table_name));
                     String source = m.ConvertToCanonicalString();
                     this.table_sources.put(table_name, source);
                     this.source_repo.add(new DBObject("TABLE", table_name), source);

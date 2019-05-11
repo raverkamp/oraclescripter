@@ -77,6 +77,19 @@ public class TableModel {
         }
     }
 
+    public final static class IndexModel {
+
+        public final String name;
+        public final List<String> columns;
+        public final boolean unique;
+
+        public IndexModel(String name, List<String> columns, boolean unique) {
+            this.name = name;
+            this.columns = columns;
+            this.unique = unique;
+        }
+    }
+
     public final String name;
     public final List<ColumnModel> columns;
     public final boolean temporary;
@@ -84,6 +97,7 @@ public class TableModel {
     public final List<ConstraintModel> constraints;
     public final PrimaryKeyModel primaryKey;
     public final String comment;
+    public final List<IndexModel> indexes;
 
     public TableModel(String name,
             boolean temporary,
@@ -91,7 +105,9 @@ public class TableModel {
             List<ColumnModel> columns,
             List<ConstraintModel> constraints,
             PrimaryKeyModel primaryKey,
-            String comment) {
+            String comment,
+            List<IndexModel> indexes
+    ) {
         this.name = name;
         this.columns = columns;
         this.temporary = temporary;
@@ -103,6 +119,15 @@ public class TableModel {
         }
         this.primaryKey = primaryKey;
         this.comment = comment;
+        this.indexes = (indexes == null) ? new ArrayList<IndexModel>() : indexes;
+    }
+
+    private String ConvertIndexToCanonicalString(IndexModel m) {
+        return "create " + (m.unique ? "unique " : "") + "index "
+                + Helper.maybeOracleQuote(m.name)
+                + " on "
+                + Helper.maybeOracleQuote(this.name)
+                + "(" + String.join(", ", m.columns) + ");\n";
     }
 
     public String ConvertToCanonicalString() {
@@ -163,6 +188,9 @@ public class TableModel {
             if (cm.comment != null && !cm.comment.isEmpty()) {
                 b.append("comment on column " + this.name + "." + cm.name + " is '" + cm.comment.replace("'", "''") + "';\n");
             }
+        }
+        for (IndexModel m : indexes) {
+            b.append(ConvertIndexToCanonicalString(m));
         }
         return b.toString();
     }

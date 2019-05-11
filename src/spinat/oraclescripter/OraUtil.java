@@ -25,7 +25,7 @@ public class OraUtil {
             Object[] vals = new Object[md.getColumnCount()];
             for (int i = 0; i < md.getColumnCount(); i++) {
                 int ct = md.getColumnType(i + 1);
-                if (ct == Types.VARCHAR) {
+                if (ct == Types.VARCHAR || ct == Types.LONGVARCHAR) {
                     vals[i] = rs.getString(i + 1);
                 } else if (ct == Types.BIGINT || ct == Types.DECIMAL || ct == Types.NUMERIC || ct == Types.INTEGER) {
                     vals[i] = rs.getBigDecimal(i + 1);

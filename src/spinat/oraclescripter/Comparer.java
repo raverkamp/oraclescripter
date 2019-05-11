@@ -340,7 +340,8 @@ public class Comparer {
                 cms,
                 consModels,
                 primaryKey,
-                tableComment);
+                tableComment,
+                new ArrayList<TableModel.IndexModel>());
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
