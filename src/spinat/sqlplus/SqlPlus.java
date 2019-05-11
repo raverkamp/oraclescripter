@@ -36,7 +36,7 @@ public class SqlPlus {
             = Pattern.compile("\\s*create\\s+sequence", Pattern.CASE_INSENSITIVE);
     static Pattern rg_comment_on = Pattern.compile("\\s*comment\\s+on\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_create_table = Pattern.compile("\\s*create\\s+(global\\s+temporary\\s+)?table\\s+", Pattern.CASE_INSENSITIVE);
-    static Pattern rg_create_index = Pattern.compile("\\s*create\\s+index\\s+", Pattern.CASE_INSENSITIVE);
+    static Pattern rg_create_index = Pattern.compile("\\s*create\\s+(unique\\s+)?index\\s+", Pattern.CASE_INSENSITIVE);
     static Pattern rg_alter_table = Pattern.compile("\\s*alter\\s+table\\s+", Pattern.CASE_INSENSITIVE);
 
     // CREATE OR REPLACE AND COMPILE JAVA SOURCE NAMED bla as ..
@@ -235,12 +235,15 @@ public class SqlPlus {
             return new String2("create-table", s);
         }
 
+        if (rg_create_index.matcher(line).lookingAt()) {
+            String s = this.eatSQL(line);
+            return new String2("create-index", s);
+        }
+
         if (rg_create_or_replace_synonym.matcher(line).lookingAt()
                 || rg_create_synonym.matcher(line).lookingAt()
                 || rg_create_sequence.matcher(line).lookingAt()
                 || rg_comment_on.matcher(line).lookingAt()
-                || rg_create_table.matcher(line).lookingAt()
-                || rg_create_index.matcher(line).lookingAt()
                 || rg_alter_table.matcher(line).lookingAt()) {
 
             String s = this.eatSQL(line);
@@ -385,6 +388,9 @@ public class SqlPlus {
                                 break;
                             case "create-table":
                                 stype = Snippet.SnippetType.CREATE_TABLE;
+                                break;
+                            case "create-index":
+                                stype = Snippet.SnippetType.CREATE_INDEX;
                                 break;
                             default:
                                 throw new RuntimeException("unexpected type of snippet;: " + what);

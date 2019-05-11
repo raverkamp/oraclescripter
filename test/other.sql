@@ -39,3 +39,8 @@ alter table bla add;
 
 comment on table xyz is 'toll!';
 comment on column xyz.abc is 'super ; ';
+
+create index a on (b(u);
+
+create unique index a on b(u);
+

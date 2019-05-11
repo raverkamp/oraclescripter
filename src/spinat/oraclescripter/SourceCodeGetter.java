@@ -325,6 +325,8 @@ public class SourceCodeGetter {
         String indexColumnsView = this.useDBAViews ? "DBA_IND_COLUMNS" : "ALL_IND_COLUMNS";
         String indexColumnsExpressions = this.useDBAViews ? "DBA_IND_EXPRESSIONS" : "ALL_IND_EXPRESSIONS";
 
+        String constraintView = this.useDBAViews ? "dba_constraints" : "all_constraints";
+
         String sql = "select i.index_name, i.index_type, i.table_name, i.uniqueness, c.COLUMN_NAME,e.COLUMN_EXPRESSION, c.COLUMN_POSITION "
                 + "from " + indexView + " i "
                 + " inner join " + indexColumnsView + " c "
@@ -336,6 +338,7 @@ public class SourceCodeGetter {
                 + " and e.COLUMN_POSITION = c.COLUMN_POSITION "
                 + " where i.table_name in (select column_value from table(?))"
                 + " and i.table_owner = ?"
+                + " and (i.owner, i.index_name) not in (select con.owner, con.constraint_name from " + constraintView + " con  where con.constraint_type in ('P', 'U')) "
                 + " order by index_name, i.owner, c.column_position";
         try (OraclePreparedStatement ps = (OraclePreparedStatement) con.prepareStatement(sql)) {
             ps.setFetchSize(10000);

@@ -268,6 +268,7 @@ public class Comparer {
         String tableName = r.v.name.name.val;
         String tableComment = null;
         Map<String, String> columnComments = new HashMap<>();
+        ArrayList<TableModel.IndexModel> indexes = new ArrayList<>();
         for (int i = 1; i < l.size(); i++) {
             Seq sx = Scanner.scanToSeq(l.get(i));
             Res<Ast.CommentOnTable> ct = p.pCommentOnTable.pa(sx);
@@ -278,6 +279,18 @@ public class Comparer {
             Res<Ast.CommentOnColumn> cc = p.pCommentOnColumn.pa(sx);
             if (cc != null) {
                 columnComments.put(cc.v.column.val, cc.v.comment.val);
+                continue;
+            }
+            Res<Ast.CreateIndex> ci = p.pCreateIndex.pa(sx);
+            if (ci != null) {
+                String indexName = ci.v.indexName.name.val;
+                boolean unique = ci.v.unique;
+                ArrayList<String> columns = new ArrayList<>();
+                for (Ast.Expression e : ci.v.columns) {
+                    String se = l.get(i).substring(e.getStart(), e.getEnd());
+                    columns.add(AstHelper.toCanonicalString(se));
+                }
+                indexes.add(new TableModel.IndexModel(indexName, columns, unique));
                 continue;
             }
 
@@ -341,7 +354,7 @@ public class Comparer {
                 consModels,
                 primaryKey,
                 tableComment,
-                new ArrayList<TableModel.IndexModel>());
+                indexes);
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
@@ -372,6 +385,18 @@ public class Comparer {
                     tableSources.get(ci.name).add(sn.text);
                 }
                 break;
+                case CREATE_INDEX: {
+                    Seq s = Scanner.scanToSeq(sn.text);
+
+                    Res<Ast.CreateIndex> ri = p.pCreateIndex.pa(s);
+                    if (ri != null) {
+                        String tableName = ri.v.tableName.name.val;
+                        if (!tableSources.containsKey(tableName)) {
+                            tableSources.put(tableName, new ArrayList<>());
+                        }
+                        tableSources.get(tableName).add(sn.text);
+                    }
+                }
                 case OTHER: {
                     Seq s = Scanner.scanToSeq(sn.text);
                     final String tableName;
