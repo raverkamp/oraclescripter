@@ -259,6 +259,47 @@ public class Comparer {
         return "?";
     }
 
+    static TableModel.ConstraintModel astConstraintToModelConstraint(String source, Ast.ConstraintDefinition rp) {
+
+        if (rp instanceof Ast.CheckConstraintDefinition) {
+            // fixme: this is a hack to get the underlying sequence of the constraint condition
+            Ast.CheckConstraintDefinition cd = (Ast.CheckConstraintDefinition) rp;
+            Ast.Expression ex = cd.expression;
+            String constraintSource = source.substring(ex.getStart(), ex.getEnd());
+            String canonicalSource = AstHelper.toCanonicalString(constraintSource);
+            TableModel.CheckConstraintModel cm = new TableModel.CheckConstraintModel(cd.name.val, canonicalSource);
+            return cm;
+        }
+        if (rp instanceof Ast.PrimaryKeyDefinition) {
+            Ast.PrimaryKeyDefinition pk = (Ast.PrimaryKeyDefinition) rp;
+            String pkname = pk.name.val;
+            List<String> columns = pk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+
+            return new TableModel.PrimaryKeyModel(pkname, columns);
+
+        }
+        if (rp instanceof Ast.UniqueKeyDefinition) {
+            Ast.UniqueKeyDefinition uk = (Ast.UniqueKeyDefinition) rp;
+            String ukname = uk.name.val;
+            List<String> columns = uk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+            return new TableModel.UniqueKeyModel(ukname, columns);
+        }
+        if (rp instanceof Ast.ForeignKeyDefinition) {
+            Ast.ForeignKeyDefinition fk = (Ast.ForeignKeyDefinition) rp;
+            String fkname = fk.name.val;
+            List<String> columns = fk.columns.stream().map(x -> x.val).collect(Collectors.toList());
+            List<String> rcolumns = fk.rcolumns.stream().map(x -> x.val).collect(Collectors.toList());
+            String rtableOwner = fk.rtable.owner == null ? null : fk.rtable.owner.val;
+            return new TableModel.ForeignKeyModel(
+                    fkname,
+                    rtableOwner,
+                    fk.rtable.name.val,
+                    columns,
+                    rcolumns);
+        };
+        throw new RuntimeException("unknwon constraint type: " + rp.getClass().toString());
+    }
+
     static TableModel tableModelFromSources(ArrayList<String> l) {
         // the create table statement must be first!
         String createTabSource = l.get(0);
@@ -269,6 +310,9 @@ public class Comparer {
         String tableComment = null;
         Map<String, String> columnComments = new HashMap<>();
         ArrayList<TableModel.IndexModel> indexes = new ArrayList<>();
+        ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
+        TableModel.PrimaryKeyModel primaryKey = null;
+
         for (int i = 1; i < l.size(); i++) {
             Seq sx = Scanner.scanToSeq(l.get(i));
             Res<Ast.CommentOnTable> ct = p.pCommentOnTable.pa(sx);
@@ -293,13 +337,39 @@ public class Comparer {
                 indexes.add(new TableModel.IndexModel(indexName, columns, unique));
                 continue;
             }
+            Res<Ast.AlterTableAddConstraint> rc = p.pAlterTableAddConstraint.pa(sx);
+            if (rc != null) {
+                TableModel.ConstraintModel cm = astConstraintToModelConstraint(l.get(i), rc.v.constraintDefinition);
+                if (cm instanceof TableModel.PrimaryKeyModel) {
+                    if (primaryKey == null) {
+                        primaryKey = (TableModel.PrimaryKeyModel) cm;
+                    } else {
+                        System.err.println("defined primary key on table again: " + tableName);
+                    }
+                } else {
+                    consModels.add(cm);
+                }
+                continue;
+            }
 
         }
 
         ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
-        ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
-        TableModel.PrimaryKeyModel primaryKey = null;
         for (RelationalProperty rp : r.v.relationalProperties) {
+
+            if (rp instanceof Ast.ConstraintDefinition) {
+                TableModel.ConstraintModel cm = astConstraintToModelConstraint(createTabSource, (Ast.ConstraintDefinition) rp);
+                if (cm instanceof TableModel.PrimaryKeyModel) {
+                    if (primaryKey != null) {
+                        System.err.println("primary key for table already given: " + tableName);
+                    } else {
+                        primaryKey = (TableModel.PrimaryKeyModel) cm;
+                    }
+                } else {
+                    consModels.add(cm);
+                }
+            }
+
             if (rp instanceof Ast.ColumnDefinition) {
                 Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
                 String columnName = cd.name.val;
@@ -307,44 +377,6 @@ public class Comparer {
                 String typeName = dataTypeToString(cd.datatype);
                 TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, columnComments.get(columnName));
                 cms.add(cm);
-            }
-            if (rp instanceof Ast.CheckConstraintDefinition) {
-                // fixme: this is a hack to get the underlying sequence of the constraint condition
-                Ast.CheckConstraintDefinition cd = (Ast.CheckConstraintDefinition) rp;
-                Ast.Expression ex = cd.expression;
-                String constraintSource = createTabSource.substring(ex.getStart(), ex.getEnd());
-                String canonicalSource = AstHelper.toCanonicalString(constraintSource);
-                TableModel.CheckConstraintModel cm = new TableModel.CheckConstraintModel(cd.name.val, canonicalSource);
-                consModels.add(cm);
-            }
-            if (rp instanceof Ast.PrimaryKeyDefinition) {
-                Ast.PrimaryKeyDefinition pk = (Ast.PrimaryKeyDefinition) rp;
-                String pkname = pk.name.val;
-                List<String> columns = pk.columns.stream().map(x -> x.val).collect(Collectors.toList());
-                if (primaryKey != null) {
-                    System.err.println("primary key for table already given: " + tableName);
-                }
-                primaryKey = new TableModel.PrimaryKeyModel(pkname, columns);
-
-            }
-            if (rp instanceof Ast.UniqueKeyDefinition) {
-                Ast.UniqueKeyDefinition uk = (Ast.UniqueKeyDefinition) rp;
-                String ukname = uk.name.val;
-                List<String> columns = uk.columns.stream().map(x -> x.val).collect(Collectors.toList());
-                consModels.add(new TableModel.UniqueKeyModel(ukname, columns));
-            }
-            if (rp instanceof Ast.ForeignKeyDefinition) {
-                Ast.ForeignKeyDefinition fk = (Ast.ForeignKeyDefinition) rp;
-                String fkname = fk.name.val;
-                List<String> columns = fk.columns.stream().map(x -> x.val).collect(Collectors.toList());
-                List<String> rcolumns = fk.rcolumns.stream().map(x -> x.val).collect(Collectors.toList());
-                String rtableOwner = fk.rtable.owner == null ? null : fk.rtable.owner.val;
-                consModels.add(new TableModel.ForeignKeyModel(
-                        fkname,
-                        rtableOwner,
-                        fk.rtable.name.val,
-                        columns,
-                        rcolumns));
             }
         }
         final TableModel.ExternalTableData extTableData;
@@ -426,6 +458,18 @@ public class Comparer {
                         tableSources.put(tableName, new ArrayList<>());
                     }
                     tableSources.get(tableName).add(sn.text);
+                }
+
+                case ALTER_TABLE: {
+                    Seq s = Scanner.scanToSeq(sn.text);
+                    Res<Ast.AlterTableAddConstraint> rc = p.pAlterTableAddConstraint.pa(s);
+                    if (rc != null) {
+                        String tableName = rc.v.tableName.name.val;
+                        if (!tableSources.containsKey(tableName)) {
+                            tableSources.put(tableName, new ArrayList<>());
+                        }
+                        tableSources.get(tableName).add(sn.text);
+                    }
                 }
             }
         }

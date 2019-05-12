@@ -239,12 +239,15 @@ public class SqlPlus {
             String s = this.eatSQL(line);
             return new String2("create-index", s);
         }
+        if (rg_alter_table.matcher(line).lookingAt()) {
+            String s = this.eatSQL(line);
+            return new String2("alter-table", s);
+        }
 
         if (rg_create_or_replace_synonym.matcher(line).lookingAt()
                 || rg_create_synonym.matcher(line).lookingAt()
                 || rg_create_sequence.matcher(line).lookingAt()
-                || rg_comment_on.matcher(line).lookingAt()
-                || rg_alter_table.matcher(line).lookingAt()) {
+                || rg_comment_on.matcher(line).lookingAt()) {
 
             String s = this.eatSQL(line);
             return new String2("other", s);
@@ -391,6 +394,9 @@ public class SqlPlus {
                                 break;
                             case "create-index":
                                 stype = Snippet.SnippetType.CREATE_INDEX;
+                                break;
+                            case "alter-table":
+                                stype = Snippet.SnippetType.ALTER_TABLE;
                                 break;
                             default:
                                 throw new RuntimeException("unexpected type of snippet;: " + what);
