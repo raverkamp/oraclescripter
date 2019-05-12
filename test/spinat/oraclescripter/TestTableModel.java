@@ -24,14 +24,15 @@ public class TestTableModel {
         String x = AstHelper.toCanonicalString(" x*y /  8 /* some commnet */");
         cl.add(new TableModel.CheckConstraintModel("CC1", x));
         TableModel m = new TableModel("table1", false, false, l, cl, null, "hallo",
-                new ArrayList<TableModel.IndexModel>(),null);
-        String s = m.ConvertToCanonicalString();
-        assertEquals(s, "create table table1(\n"
-                + "C1 number,\n"
-                + "C2 bla not null,\n"
-                + "C3 xyz,\n"
-                + "constraint CC1 check (X * Y / 8));\n"
-                + "comment on table table1 is 'hallo';\n");
+                new ArrayList<TableModel.IndexModel>(), null);
+        String s = m.convertToCanonicalString();
+        assertEquals("create table \"table1\"(\n"
+                + "c1 number,\n"
+                + "c2 bla not null,\n"
+                + "c3 xyz);\n"
+                + "comment on table table1 is 'hallo';"
+                + "alter table table1 add constraint cc1 check (X * Y / 8));\n",
+                s);
 
     }
 }

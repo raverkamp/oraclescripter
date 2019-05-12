@@ -177,16 +177,19 @@ public class TableModel {
     }
 
     private String convertIndexToCanonicalString(IndexModel m) {
+        // we can not use columnsToCommaSeparated since for functiojn based indexes
+        // the columns might be expresssion these would be quoted
+        String colString = String.join(", ", m.columns);
         return "create " + (m.unique ? "unique " : "") + "index "
                 + Helper.maybeOracleQuote(m.name)
                 + " on "
                 + Helper.maybeOracleQuote(this.name)
-                + "(" + columnsToCommaSeparated(m.columns) + ");\n";
+                + "(" + colString + ");\n";
     }
 
     public String convertToCanonicalString() {
         StringBuilder b = new StringBuilder();
-        b.append("create " + (this.temporary ? "global temporary " : "") + "table " + this.name + "(\n");
+        b.append("create " + (this.temporary ? "global temporary " : "") + "table " + Helper.maybeOracleQuote(this.name) + "(\n");
         for (int i = 0; i < this.columns.size(); i++) {
             ColumnModel c = this.columns.get(i);
             b.append(Helper.maybeOracleQuote(c.name) + " " + c.datatype);
@@ -196,17 +199,6 @@ public class TableModel {
             if (i < this.columns.size() - 1) {
                 b.append(",\n");
             }
-        }
-        if (this.primaryKey != null) {
-            b.append(",\n");
-            b.append(primaryKey.convertToCanonicalString());
-        }
-        ArrayList<ConstraintModel> x = new ArrayList<>();
-        x.addAll(this.constraints);
-        x.sort((ConstraintModel t, ConstraintModel t1) -> t.name.compareTo(t1.name));
-        for (ConstraintModel cm : x) {
-            b.append(",\n");
-            b.append(cm.convertToCanonicalString());
         }
         b.append(")");
         if (this.temporary) {
@@ -237,7 +229,26 @@ public class TableModel {
                         + " is '" + cm.comment.replace("'", "''") + "';\n");
             }
         }
-        for (IndexModel m : indexes) {
+        
+         if (this.primaryKey != null) {
+            b.append("alter table " + Helper.maybeOracleQuote(this.name) + " add "); 
+            b.append(primaryKey.convertToCanonicalString());
+            b.append(";\n");
+        }
+        ArrayList<ConstraintModel> x = new ArrayList<>();
+        x.addAll(this.constraints);
+        x.sort((ConstraintModel t, ConstraintModel t1) -> t.name.compareTo(t1.name));
+        for (ConstraintModel cm : x) {
+            b.append("alter table " + Helper.maybeOracleQuote(this.name) + " add "); 
+            b.append(cm.convertToCanonicalString());
+            b.append(";\n");
+        }
+        
+        ArrayList<IndexModel> y = new ArrayList<>();
+        y.addAll(this.indexes);
+        y.sort((IndexModel t, IndexModel t1) -> t.name.compareTo(t1.name));
+        
+        for (IndexModel m : y) {
             b.append(convertIndexToCanonicalString(m));
         }
         return b.toString();

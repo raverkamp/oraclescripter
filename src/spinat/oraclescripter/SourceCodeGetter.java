@@ -272,6 +272,9 @@ public class SourceCodeGetter {
                     String table_name = r0.getString("TABLE_NAME");
                     String rtable_name = r0.getString("RTABLE_NAME");
                     String rowner = r0.getString("ROWNER");
+                    if (rowner.equals(this.owner)) {
+                        rowner = null;
+                    }
                     ArrayList<String> columns = new ArrayList<>();
                     ArrayList<String> rcolumns = new ArrayList<>();
 
@@ -282,7 +285,8 @@ public class SourceCodeGetter {
                     if (!constraints.containsKey(table_name)) {
                         constraints.put(table_name, new ArrayList<>());
                     }
-                    constraints.get(table_name).add(new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
+                    constraints.get(table_name).add(
+                            new TableModel.ForeignKeyModel(constraint_name, rowner, rtable_name, columns, rcolumns));
                 }
             }
         }
