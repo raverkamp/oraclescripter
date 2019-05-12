@@ -477,7 +477,7 @@ public class Comparer {
         for (ArrayList<String> tl
                 : tableSources.values()) {
             TableModel tm = tableModelFromSources(tl);
-            String canoicalSource = tm.ConvertToCanonicalString();
+            String canoicalSource = tm.convertToCanonicalString();
             DBObject dbo = new DBObject("TABLE", tm.name);
             repo.add(dbo, canoicalSource);
         }

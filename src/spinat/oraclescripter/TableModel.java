@@ -22,13 +22,19 @@ public class TableModel {
         }
     }
 
-    public static class ConstraintModel {
+    private static String columnsToCommaSeparated(List<String> c) {
+        return String.join(", ", c.stream().map(x -> Helper.maybeOracleQuote(x)).collect(Collectors.toList()));
+    }
+
+    public static abstract class ConstraintModel {
 
         public final String name;
 
         protected ConstraintModel(String name) {
             this.name = name;
         }
+
+        public abstract String convertToCanonicalString();
     }
 
     public final static class CheckConstraintModel extends ConstraintModel {
@@ -38,6 +44,11 @@ public class TableModel {
         public CheckConstraintModel(String name, String condition) {
             super(name);
             this.condition = condition;
+        }
+
+        @Override
+        public String convertToCanonicalString() {
+            return "constraint " + Helper.maybeOracleQuote(this.name) + " check (" + this.condition + ")";
         }
     }
 
@@ -49,6 +60,12 @@ public class TableModel {
             super(name);
             this.columns = columns;
         }
+
+        @Override
+        public String convertToCanonicalString() {
+            return "constraint " + Helper.maybeOracleQuote(this.name)
+                    + " primary key (" + columnsToCommaSeparated(this.columns) + ")";
+        }
     }
 
     public final static class UniqueKeyModel extends ConstraintModel {
@@ -58,6 +75,13 @@ public class TableModel {
         public UniqueKeyModel(String name, List<String> columns) {
             super(name);
             this.columns = columns;
+        }
+
+        @Override
+        public String convertToCanonicalString() {
+
+            return "constraint " + Helper.maybeOracleQuote(this.name)
+                    + " unique (" + columnsToCommaSeparated(this.columns) + ")";
         }
     }
 
@@ -74,6 +98,20 @@ public class TableModel {
             this.rtable = rtable;
             this.columns = columns;
             this.rcolumns = rcolumns;
+        }
+
+        @Override
+        public String convertToCanonicalString() {
+            StringBuilder b = new StringBuilder();
+            b.append("constraint " + Helper.maybeOracleQuote(this.name));
+            b.append(" foreign key (").append(columnsToCommaSeparated(this.columns)).append(")");
+            b.append(" references ");
+            if (this.rowner != null) {
+                b.append(Helper.maybeOracleQuote(this.rowner)).append(".");
+            }
+            b.append(Helper.maybeOracleQuote(this.rtable));
+            b.append("(").append(columnsToCommaSeparated(this.rcolumns)).append(")");
+            return b.toString();
         }
     }
 
@@ -138,20 +176,20 @@ public class TableModel {
         this.externalTableData = externalTableData;
     }
 
-    private String ConvertIndexToCanonicalString(IndexModel m) {
+    private String convertIndexToCanonicalString(IndexModel m) {
         return "create " + (m.unique ? "unique " : "") + "index "
                 + Helper.maybeOracleQuote(m.name)
                 + " on "
                 + Helper.maybeOracleQuote(this.name)
-                + "(" + String.join(", ", m.columns) + ");\n";
+                + "(" + columnsToCommaSeparated(m.columns) + ");\n";
     }
 
-    public String ConvertToCanonicalString() {
+    public String convertToCanonicalString() {
         StringBuilder b = new StringBuilder();
         b.append("create " + (this.temporary ? "global temporary " : "") + "table " + this.name + "(\n");
         for (int i = 0; i < this.columns.size(); i++) {
             ColumnModel c = this.columns.get(i);
-            b.append(c.name + " " + c.datatype);
+            b.append(Helper.maybeOracleQuote(c.name) + " " + c.datatype);
             if (!c.nullable) {
                 b.append(" not null");
             }
@@ -161,32 +199,14 @@ public class TableModel {
         }
         if (this.primaryKey != null) {
             b.append(",\n");
-            b.append("constraint " + primaryKey.name);
-            b.append(" primary key (").append(String.join(", ", this.primaryKey.columns)).append(")");
+            b.append(primaryKey.convertToCanonicalString());
         }
         ArrayList<ConstraintModel> x = new ArrayList<>();
         x.addAll(this.constraints);
         x.sort((ConstraintModel t, ConstraintModel t1) -> t.name.compareTo(t1.name));
         for (ConstraintModel cm : x) {
             b.append(",\n");
-            b.append("constraint " + cm.name);
-            if (cm instanceof CheckConstraintModel) {
-                b.append(" check (" + ((CheckConstraintModel) cm).condition + ")");
-            }
-            if (cm instanceof UniqueKeyModel) {
-                UniqueKeyModel km = (UniqueKeyModel) cm;
-                b.append(" unique (").append(String.join(", ", km.columns)).append(")");
-            }
-            if (cm instanceof ForeignKeyModel) {
-                ForeignKeyModel fm = (ForeignKeyModel) cm;
-                b.append(" foreign key (").append(String.join(", ", fm.columns)).append(")");
-                b.append(" references ");
-                if (fm.rowner != null) {
-                    b.append(fm.rowner).append(".");
-                }
-                b.append(fm.rtable);
-                b.append("(").append(String.join(", ", fm.rcolumns)).append(")");
-            }
+            b.append(cm.convertToCanonicalString());
         }
         b.append(")");
         if (this.temporary) {
@@ -200,21 +220,25 @@ public class TableModel {
             b.append("\n organization external\n(type oracle_loader default directory "
                     + Helper.maybeOracleQuote(this.externalTableData.directory)
                     + "\nlocation(");
-            b.append(String.join(", ", this.externalTableData.locations.stream().map(y -> "'" + y + "'").collect(Collectors.toList())));
+            b.append(String.join(", ", this.externalTableData.locations.stream()
+                    .map(y -> "'" + y + "'").collect(Collectors.toList())));
             b.append("))");
 
         }
         b.append(";\n");
         if (this.comment != null && !this.comment.isEmpty()) {
-            b.append("comment on table " + this.name + " is '" + this.comment.replace("'", "''") + "';\n");
+            b.append("comment on table " + this.name
+                    + " is '" + this.comment.replace("'", "''") + "';\n");
         }
         for (ColumnModel cm : this.columns) {
             if (cm.comment != null && !cm.comment.isEmpty()) {
-                b.append("comment on column " + this.name + "." + cm.name + " is '" + cm.comment.replace("'", "''") + "';\n");
+                b.append("comment on column " + Helper.maybeOracleQuote(this.name)
+                        + "." + Helper.maybeOracleQuote(cm.name)
+                        + " is '" + cm.comment.replace("'", "''") + "';\n");
             }
         }
         for (IndexModel m : indexes) {
-            b.append(ConvertIndexToCanonicalString(m));
+            b.append(convertIndexToCanonicalString(m));
         }
         return b.toString();
     }

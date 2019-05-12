@@ -537,7 +537,7 @@ public class SourceCodeGetter {
                             tabComments.get(table_name),
                             indexes.get(table_name),
                             externalTableData.get(table_name));
-                    String source = m.ConvertToCanonicalString();
+                    String source = m.convertToCanonicalString();
                     this.table_sources.put(table_name, source);
                     this.source_repo.add(new DBObject("TABLE", table_name), source);
 
