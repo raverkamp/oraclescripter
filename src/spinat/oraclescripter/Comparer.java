@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import oracle.jdbc.OracleConnection;
 import spinat.plsqlparser.Ast;
 import spinat.plsqlparser.Ast.RelationalProperty;
+import spinat.plsqlparser.ParseException;
 import spinat.plsqlparser.Parser;
 import spinat.plsqlparser.Res;
 import spinat.plsqlparser.Scanner;
@@ -156,10 +157,19 @@ public class Comparer {
         String connectionDesc = Helper.getProp(props, "connection");
         boolean ignoreDBOnly = Helper.getPropBool(props, "ignoredbonly", false);
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
-        if (!ConnectionUtil.hasDBAViews(connection)) {
-            Helper.abort("the connection needs access to dba views, the view like dba_objects and etc.");
-        }
         String[] schema_list = schemas.split(",");
+        final boolean useDBAViews;
+        if (schema_list.length == 1) {
+            useDBAViews = false;
+        } else {
+            if (!ConnectionUtil.hasDBAViews(connection)) {
+                Helper.abort("the connection needs access to dba views, the view like dba_objects and etc.");
+
+                return; // abort aborts
+            }
+            useDBAViews = true;
+        }
+
         // create the temporary directories for comparision
         Path tempDir = Files.createTempDirectory("changes");
         Path dbDir = tempDir.resolve("DB");
@@ -171,8 +181,8 @@ public class Comparer {
             String owner = schema.toUpperCase(Locale.ROOT);
             ConnectionUtil.ObjectCond conds = new ConnectionUtil.ObjectCond();
             conds.obj_where = "1=1";
-            ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(connection, owner, true, conds, includeTables);
-            SourceCodeGetter sc = new SourceCodeGetter(connection, owner, true);
+            ArrayList<DBObject> dbObjects = ConnectionUtil.getDBObjects(connection, owner, useDBAViews, conds, includeTables);
+            SourceCodeGetter sc = new SourceCodeGetter(connection, owner, useDBAViews);
             sc.load(dbObjects);
             SourceRepo repoDB = sc.getSourceRepo();
             String startFile = Helper.getProp(props, schema + ".start");
@@ -301,102 +311,110 @@ public class Comparer {
     }
 
     static TableModel tableModelFromSources(ArrayList<String> l) {
-        // the create table statement must be first!
-        String createTabSource = l.get(0);
-        Seq s = Scanner.scanToSeq(createTabSource);
-        spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
-        Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
-        String tableName = r.v.name.name.val;
-        String tableComment = null;
-        Map<String, String> columnComments = new HashMap<>();
-        ArrayList<TableModel.IndexModel> indexes = new ArrayList<>();
-        ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
-        TableModel.PrimaryKeyModel primaryKey = null;
+        try {
+            // the create table statement must be first!
+            String createTabSource = l.get(0);
+            Seq s = Scanner.scanToSeq(createTabSource);
+            spinat.plsqlparser.Parser p = new spinat.plsqlparser.Parser();
+            Res<spinat.plsqlparser.Ast.CreateTable> r = p.pCreateTable.pa(s);
+            if (r == null) {
+                System.out.println(createTabSource);
+            }
+            String tableName = r.v.name.name.val;
+            String tableComment = null;
+            Map<String, String> columnComments = new HashMap<>();
+            ArrayList<TableModel.IndexModel> indexes = new ArrayList<>();
+            ArrayList<TableModel.ConstraintModel> consModels = new ArrayList<>();
+            TableModel.PrimaryKeyModel primaryKey = null;
 
-        for (int i = 1; i < l.size(); i++) {
-            Seq sx = Scanner.scanToSeq(l.get(i));
-            Res<Ast.CommentOnTable> ct = p.pCommentOnTable.pa(sx);
-            if (ct != null) {
-                tableComment = ct.v.comment.val;
-                continue;
-            }
-            Res<Ast.CommentOnColumn> cc = p.pCommentOnColumn.pa(sx);
-            if (cc != null) {
-                columnComments.put(cc.v.column.val, cc.v.comment.val);
-                continue;
-            }
-            Res<Ast.CreateIndex> ci = p.pCreateIndex.pa(sx);
-            if (ci != null) {
-                String indexName = ci.v.indexName.name.val;
-                boolean unique = ci.v.unique;
-                ArrayList<String> columns = new ArrayList<>();
-                for (Ast.Expression e : ci.v.columns) {
-                    String se = l.get(i).substring(e.getStart(), e.getEnd());
-                    columns.add(AstHelper.toCanonicalString(se));
+            for (int i = 1; i < l.size(); i++) {
+                Seq sx = Scanner.scanToSeq(l.get(i));
+                Res<Ast.CommentOnTable> ct = p.pCommentOnTable.pa(sx);
+                if (ct != null) {
+                    tableComment = ct.v.comment.val;
+                    continue;
                 }
-                indexes.add(new TableModel.IndexModel(indexName, columns, unique));
-                continue;
-            }
-            Res<Ast.AlterTableAddConstraint> rc = p.pAlterTableAddConstraint.pa(sx);
-            if (rc != null) {
-                TableModel.ConstraintModel cm = astConstraintToModelConstraint(l.get(i), rc.v.constraintDefinition);
-                if (cm instanceof TableModel.PrimaryKeyModel) {
-                    if (primaryKey == null) {
-                        primaryKey = (TableModel.PrimaryKeyModel) cm;
-                    } else {
-                        System.err.println("defined primary key on table again: " + tableName);
+                Res<Ast.CommentOnColumn> cc = p.pCommentOnColumn.pa(sx);
+                if (cc != null) {
+                    columnComments.put(cc.v.column.val, cc.v.comment.val);
+                    continue;
+                }
+                Res<Ast.CreateIndex> ci = p.pCreateIndex.pa(sx);
+                if (ci != null) {
+                    String indexName = ci.v.indexName.name.val;
+                    boolean unique = ci.v.unique;
+                    ArrayList<String> columns = new ArrayList<>();
+                    for (Ast.Expression e : ci.v.columns) {
+                        String se = l.get(i).substring(e.getStart(), e.getEnd());
+                        columns.add(AstHelper.toCanonicalString(se));
                     }
-                } else {
-                    consModels.add(cm);
+                    indexes.add(new TableModel.IndexModel(indexName, columns, unique));
+                    continue;
                 }
-                continue;
-            }
-
-        }
-
-        ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
-        for (RelationalProperty rp : r.v.relationalProperties) {
-
-            if (rp instanceof Ast.ConstraintDefinition) {
-                TableModel.ConstraintModel cm = astConstraintToModelConstraint(createTabSource, (Ast.ConstraintDefinition) rp);
-                if (cm instanceof TableModel.PrimaryKeyModel) {
-                    if (primaryKey != null) {
-                        System.err.println("primary key for table already given: " + tableName);
+                Res<Ast.AlterTableAddConstraint> rc = p.pAlterTableAddConstraint.pa(sx);
+                if (rc != null) {
+                    TableModel.ConstraintModel cm = astConstraintToModelConstraint(l.get(i), rc.v.constraintDefinition);
+                    if (cm instanceof TableModel.PrimaryKeyModel) {
+                        if (primaryKey == null) {
+                            primaryKey = (TableModel.PrimaryKeyModel) cm;
+                        } else {
+                            System.err.println("defined primary key on table again: " + tableName);
+                        }
                     } else {
-                        primaryKey = (TableModel.PrimaryKeyModel) cm;
+                        consModels.add(cm);
                     }
-                } else {
-                    consModels.add(cm);
+                    continue;
                 }
             }
 
-            if (rp instanceof Ast.ColumnDefinition) {
-                Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
-                String columnName = cd.name.val;
-                boolean nullable = cd.nullable;
-                String typeName = dataTypeToString(cd.datatype);
-                TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, columnComments.get(columnName));
-                cms.add(cm);
+            ArrayList<TableModel.ColumnModel> cms = new ArrayList<>();
+            for (RelationalProperty rp : r.v.relationalProperties) {
+
+                if (rp instanceof Ast.ConstraintDefinition) {
+                    TableModel.ConstraintModel cm = astConstraintToModelConstraint(createTabSource, (Ast.ConstraintDefinition) rp);
+                    if (cm instanceof TableModel.PrimaryKeyModel) {
+                        if (primaryKey != null) {
+                            System.err.println("primary key for table already given: " + tableName);
+                        } else {
+                            primaryKey = (TableModel.PrimaryKeyModel) cm;
+                        }
+                    } else {
+                        consModels.add(cm);
+                    }
+                }
+
+                if (rp instanceof Ast.ColumnDefinition) {
+                    Ast.ColumnDefinition cd = (Ast.ColumnDefinition) rp;
+                    String columnName = cd.name.val;
+                    boolean nullable = cd.nullable;
+                    String typeName = dataTypeToString(cd.datatype);
+                    TableModel.ColumnModel cm = new TableModel.ColumnModel(columnName, typeName, nullable, columnComments.get(columnName));
+                    cms.add(cm);
+                }
             }
-        }
-        final TableModel.ExternalTableData extTableData;
-        Ast.OrganizationExternal e = r.v.organisationExternal;
-        if (e == null) {
-            extTableData = null;
-        } else {
-            extTableData = new TableModel.ExternalTableData(e.defaultDirectory.val, e.type, e.location.stream().map(x -> x.val).collect(Collectors.toList()));
+            final TableModel.ExternalTableData extTableData;
+            Ast.OrganizationExternal e = r.v.organisationExternal;
+            if (e == null) {
+                extTableData = null;
+            } else {
+                extTableData = new TableModel.ExternalTableData(e.defaultDirectory.val, e.type, e.location.stream().map(x -> x.val).collect(Collectors.toList()));
 
-        }
+            }
 
-        return new TableModel(tableName,
-                r.v.temporary,
-                r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE),
-                cms,
-                consModels,
-                primaryKey,
-                tableComment,
-                indexes,
-                extTableData);
+            return new TableModel(tableName,
+                    r.v.temporary,
+                    r.v.onCommitRows.equals(Ast.OnCommitRows.PRESERVE),
+                    cms,
+                    consModels,
+                    primaryKey,
+                    tableComment,
+                    indexes,
+                    extTableData);
+
+        } catch (Exception e) {
+            System.err.println(e);
+            return null;
+        }
     }
 
     static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
@@ -421,10 +439,13 @@ public class Comparer {
                     // tables are different, their definition might be
                     // distributed over several statements
                     CodeInfo ci = SqlPlus.analyzeCreateTable(sn.text);
-                    if (!tableSources.containsKey(ci.name)) {
+                    System.out.println("doing table " + ci.name);
+                    if (tableSources.containsKey(ci.name)) {
+                        System.out.println("error tablesSourcres for table not empty for: " + ci.name);
+                    } else {
                         tableSources.put(ci.name, new ArrayList<>());
+                        tableSources.get(ci.name).add(sn.text);
                     }
-                    tableSources.get(ci.name).add(sn.text);
                 }
                 break;
                 case CREATE_INDEX: {
@@ -433,43 +454,41 @@ public class Comparer {
                     Res<Ast.CreateIndex> ri = p.pCreateIndex.pa(s);
                     if (ri != null) {
                         String tableName = ri.v.tableName.name.val;
-                        if (!tableSources.containsKey(tableName)) {
-                            tableSources.put(tableName, new ArrayList<>());
-                        }
                         tableSources.get(tableName).add(sn.text);
                     }
+                    break;
                 }
                 case OTHER: {
                     Seq s = Scanner.scanToSeq(sn.text);
-                    final String tableName;
                     Res<Ast.CommentOnColumn> rc = p.pCommentOnColumn.pa(s);
                     if (rc != null) {
-                        tableName = rc.v.tableName.name.val;
+                        String tableName = rc.v.tableName.name.val;
+                        tableSources.get(tableName).add(sn.text);
                     } else {
                         Res<Ast.CommentOnTable> rt = p.pCommentOnTable.pa(s);
                         if (rt != null) {
-                            tableName = rt.v.tableName.name.val;
-                        } else {
-                            continue;
+                            String tableName = rt.v.tableName.name.val;
+                            tableSources.get(tableName).add(sn.text);
                         }
                     }
-
-                    if (!tableSources.containsKey(tableName)) {
-                        tableSources.put(tableName, new ArrayList<>());
-                    }
-                    tableSources.get(tableName).add(sn.text);
+                    break;
                 }
 
                 case ALTER_TABLE: {
-                    Seq s = Scanner.scanToSeq(sn.text);
-                    Res<Ast.AlterTableAddConstraint> rc = p.pAlterTableAddConstraint.pa(s);
+                    Res<Ast.AlterTableAddConstraint> rc = null;
+                    try {
+                        Seq s = Scanner.scanToSeq(sn.text);
+                        rc = p.pAlterTableAddConstraint.pa(s);
+                    } catch (Exception ex) {
+                        System.out.println(sn.text);
+                        System.out.println(ex);
+
+                    }
                     if (rc != null) {
                         String tableName = rc.v.tableName.name.val;
-                        if (!tableSources.containsKey(tableName)) {
-                            tableSources.put(tableName, new ArrayList<>());
-                        }
                         tableSources.get(tableName).add(sn.text);
                     }
+                    break;
                 }
             }
         }
@@ -477,9 +496,11 @@ public class Comparer {
         for (ArrayList<String> tl
                 : tableSources.values()) {
             TableModel tm = tableModelFromSources(tl);
-            String canoicalSource = tm.convertToCanonicalString();
-            DBObject dbo = new DBObject("TABLE", tm.name);
-            repo.add(dbo, canoicalSource);
+            if (tm != null) {
+                String canoicalSource = tm.convertToCanonicalString();
+                DBObject dbo = new DBObject("TABLE", tm.name);
+                repo.add(dbo, canoicalSource);
+            }
         }
         return repo;
     }

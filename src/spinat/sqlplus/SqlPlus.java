@@ -491,7 +491,7 @@ public class SqlPlus {
         }
         String text2 = text.substring(a).trim();
         int nameEnd = findPatternEnd(rg_ident, text2, 0);
-        String name = text2.substring(0, nameEnd);
+        String name = text2.substring(0, nameEnd).toUpperCase();
         CodeInfo ci = new CodeInfo("TABLE", name, null, text);
         return ci;
     }

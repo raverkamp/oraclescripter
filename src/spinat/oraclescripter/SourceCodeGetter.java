@@ -521,7 +521,15 @@ public class SourceCodeGetter {
                             Integer dp = r.getInteger("DATA_PRECISION");
                             Integer ds = r.getInteger("DATA_SCALE");
                             if (dp == null) {
-                                type = "NUMBER";
+                                if (ds != null) {
+                                    if (ds == 0) {
+                                        type = "INTEGER";
+                                    } else {
+                                        type = "NUMBER(38," + dp + ")";
+                                    }
+                                } else {
+                                    type = "NUMBER";
+                                }
                             } else {
                                 type = "NUMBER(" + dp + "," + ds + ")";
                             }
@@ -586,20 +594,22 @@ public class SourceCodeGetter {
     }
 
     public String getCode(String objectType, String objectName) {
+        final String src;
         if (Helper.arrayIndexOf(source_stuff, objectType) >= 0) {
-            return getUserSourceCode(objectName, objectType);
+            src = getUserSourceCode(objectName, objectType);
+        } else if ("VIEW".equals(objectType)) {
+            src = getViewSourceCode(objectName);
+        } else if ("TRIGGER".equals(objectType)) {
+            src = getTriggerSourceCode(objectName);
+        } else if ("TABLE".equals(objectType)) {
+            src = getTableSourceCode(objectName);
+        } else {
+            throw new RuntimeException("unknown kind of object " + objectType);
         }
-        if ("VIEW".equals(objectType)) {
-            return getViewSourceCode(objectName);
+        if (src == null && !(objectType.equals("PACKAGE BODY") || objectType.equals("TYPE BODY"))) {
+            throw new RuntimeException("could not find " + objectType + " / " + objectName);
         }
-        if ("TRIGGER".equals(objectType)) {
-            return getTriggerSourceCode(objectName);
-        }
-        if ("TABLE".equals(objectType)) {
-            return getTableSourceCode(objectName);
-        }
-
-        throw new RuntimeException("unknown kind of object " + objectType);
+        return src;
     }
 
     private String getUserSourceCode(String objectName, String objectType) {
