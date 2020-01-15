@@ -75,6 +75,24 @@ public class SqlPlus {
 
     }
 
+    static class SqlPlusError {
+
+        public final Path filePath;
+
+        public final int lineNo;
+        public String msg;
+
+        public SqlPlusError(Path filePath, int lineNo, String msg) {
+            this.filePath = filePath;
+            this.lineNo = lineNo;
+            this.msg = msg;
+        }
+    }
+
+    void logError(Path filePath, int lineno, String msg) {
+        System.err.println("Error at: " + filePath + ", line=" + lineno + ": " + msg);
+    }
+
     // check if pattern p matches s starting at pos, return next position after pattern
     static int findPatternEnd(Pattern p, String s, int pos) {
         String s2 = s.substring(pos);
@@ -83,6 +101,7 @@ public class SqlPlus {
             return m.end() + pos;
         } else {
             return -1;
+
         }
     }
 
@@ -113,7 +132,7 @@ public class SqlPlus {
                 return new FileFrame(path2, reader, 1);
             }
         }
-        throw new Exception("file not found: " + path);
+        return null;
     }
 
     public SqlPlus(Path filePath, Path baseDir) {
@@ -133,7 +152,9 @@ public class SqlPlus {
         while (true) {
             String line = this.readLine();
             if (line == null) {
-                throw new Exception("unexpected end of file, expecting a '/'");
+                FileFrame x = this.frames.get(0);
+                logError(x.filePath, x.lineNo, "unexpected end of file, expecting a '/'");
+                return b.toString();
             }
             if (line.trim().equals("/")) {
                 return b.toString();
@@ -150,8 +171,8 @@ public class SqlPlus {
 
         while (true) {
             boolean hit = false;
-            // rg_star_comment gives a stackoverflow if the the comm3ent is to large
-            // we sue another method
+            // rg_star_comment gives a stackoverflow if the the comment is to large
+            // we use another method
             if (res.startsWith("/*", pos)) {
                 pos = pos + 2;
                 while (true) {
@@ -256,7 +277,11 @@ public class SqlPlus {
             String s = this.readTillSlash(line);
             return new String2("code", s);
         }
-        throw new Exception("can not identify line: " + line);
+        
+        logError(this.frames.get(0).filePath, this.frames.get(0).lineNo,"can not identify line: " + line);
+        return new String2("empty", "");
+       
+
     }
 
     static class StartDecomp {
@@ -327,11 +352,15 @@ public class SqlPlus {
         if (dc.cmd.compareToIgnoreCase("START") == 0 || dc.cmd.equals("@")) {
             newFilePath = this.baseDir.resolve(dc.fileName).toAbsolutePath();
         } else {
-
             newFilePath = this.frames.get(0).filePath.getParent().resolve(dc.fileName).toAbsolutePath();
         }
         FileFrame ff = this.openFile(newFilePath);
-        this.frames.add(0, ff);
+        if (ff == null) {
+            FileFrame x = this.frames.get(0);
+            logError(x.filePath, x.lineNo, "could not find file:" + newFilePath);
+        } else {
+            this.frames.add(0, ff);
+        }
 
     }
 

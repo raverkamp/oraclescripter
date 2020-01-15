@@ -59,4 +59,10 @@ public class SqlPlusTest {
         assertEquals(atLine(sl, 38), Snippet.SnippetType.OTHER);
 
     }
+
+    @Test
+    public void testDoesNotExist() throws Exception {
+        SqlPlus sqlplus = new SqlPlus(Paths.get("test/some-errors.sql"), Paths.get("test"));
+        ArrayList<Snippet> sl = sqlplus.process();
+    }
 }
