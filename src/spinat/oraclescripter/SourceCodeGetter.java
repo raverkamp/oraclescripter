@@ -589,7 +589,9 @@ public class SourceCodeGetter {
         this.loadTriggerSource(triggers);
         this.loadViewColumns(views);
         this.loadViewSource(views);
-        this.loadTableSources(tables);
+        if (!tables.isEmpty()) {
+            this.loadTableSources(tables);
+        }
 
     }
 
@@ -630,7 +632,7 @@ public class SourceCodeGetter {
 
         String code = this.view_sources.get(view);
         return "create or replace force view " + Helper.maybeOracleQuote(view)
-                + " (" + view_tab_columns.get(view) + ") as \n"
+                + " (" + view_tab_columns.get(view) + ") as\n"
                 + code;
     }
 
