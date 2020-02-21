@@ -1,5 +1,6 @@
 package spinat.oraclescripter;
 
+import java.nio.charset.Charset;
 import spinat.sqlplus.SqlPlus;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -10,6 +11,8 @@ import spinat.sqlplus.Snippet;
 
 public class SqlPlusTest {
 
+    static Charset defaultCharset = Charset.forName("ISO-8859-1");
+
     public SqlPlusTest() {
         Path currentRelativePath = Paths.get("");
         String s = currentRelativePath.toAbsolutePath().toString();
@@ -18,7 +21,7 @@ public class SqlPlusTest {
 
     @Test
     public void testInstall() throws Exception {
-        SqlPlus sqlplus = new SqlPlus(Paths.get("test/testschema/all.sql"), Paths.get("test/testschema"));
+        SqlPlus sqlplus = new SqlPlus(Paths.get("test/testschema/all.sql"), Paths.get("test/testschema"), defaultCharset);
         ArrayList<Snippet> sl = sqlplus.process();
         assertTrue(sl.size() > 0);
     }
@@ -34,7 +37,7 @@ public class SqlPlusTest {
 
     @Test
     public void testOthers() throws Exception {
-        SqlPlus sqlplus = new SqlPlus(Paths.get("test/other.sql"), Paths.get("test"));
+        SqlPlus sqlplus = new SqlPlus(Paths.get("test/other.sql"), Paths.get("test"), defaultCharset);
         ArrayList<Snippet> sl = sqlplus.process();
         assertTrue(sl.size() > 0);
         assertEquals(atLine(sl, 1), Snippet.SnippetType.COMMENT);
@@ -62,7 +65,7 @@ public class SqlPlusTest {
 
     @Test
     public void testDoesNotExist() throws Exception {
-        SqlPlus sqlplus = new SqlPlus(Paths.get("test/some-errors.sql"), Paths.get("test"));
+        SqlPlus sqlplus = new SqlPlus(Paths.get("test/some-errors.sql"), Paths.get("test"), defaultCharset);
         ArrayList<Snippet> sl = sqlplus.process();
     }
 }

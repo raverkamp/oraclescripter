@@ -1,8 +1,14 @@
 package spinat.sqlplus;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -118,26 +124,34 @@ public class SqlPlus {
 
     final Path startFileName;
     final Path baseDir;
+    final Charset charset;
 
     final ArrayList<FileFrame> frames = new ArrayList<>();
 
+    BufferedReader openTextFile(Path path) throws FileNotFoundException {
+        InputStream s = new FileInputStream(path.toFile());
+        return new BufferedReader(new InputStreamReader(s, charset));
+    }
+
     FileFrame openFile(Path path) throws Exception {
         if (Files.exists(path)) {
-            BufferedReader reader = new BufferedReader(new FileReader(path.toFile()));
+            BufferedReader reader = openTextFile(path);
             return new FileFrame(path, reader, 1);
         } else {
             Path path2 = Paths.get(path.toAbsolutePath().toString() + ".sql");
             if (Files.exists(path2)) {
-                BufferedReader reader = new BufferedReader(new FileReader(path2.toFile()));
+                BufferedReader reader = openTextFile(path2);
                 return new FileFrame(path2, reader, 1);
             }
         }
         return null;
     }
 
-    public SqlPlus(Path filePath, Path baseDir) {
+    public SqlPlus(Path filePath, Path baseDir, Charset charset) {
         this.startFileName = filePath;
         this.baseDir = baseDir;
+        this.charset = charset;
+
     }
 
     String readLine() throws IOException {
@@ -277,10 +291,9 @@ public class SqlPlus {
             String s = this.readTillSlash(line);
             return new String2("code", s);
         }
-        
-        logError(this.frames.get(0).filePath, this.frames.get(0).lineNo,"can not identify line: " + line);
+
+        logError(this.frames.get(0).filePath, this.frames.get(0).lineNo, "can not identify line: " + line);
         return new String2("empty", "");
-       
 
     }
 

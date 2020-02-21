@@ -2,6 +2,7 @@ package spinat.oraclescripter;
 
 import spinat.sqlplus.SqlPlus;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -156,6 +158,18 @@ public class Comparer {
         boolean includeTables = Helper.getPropBool(props, "includetables", false);
         String connectionDesc = Helper.getProp(props, "connection");
         boolean ignoreDBOnly = Helper.getPropBool(props, "ignoredbonly", false);
+        String charsetStr = Helper.getProp(props, "charset", "ISO-8859-1");
+        SortedMap<String, Charset> sm = Charset.availableCharsets();
+        if (!sm.containsKey(charsetStr)) {
+            StringBuilder sb = new StringBuilder();
+            for (String x : sm.keySet()) {
+                sb.append(x).append(" ");
+            }
+            Helper.abort("the given charset is not defined: " + charsetStr + ", possible values\n" + sb.toString());
+            return;
+        }
+        Charset charset = sm.get(charsetStr);
+
         OracleConnection connection = ConnectionUtil.getConnection(connectionDesc);
         String[] schema_list = schemas.split(",");
         final boolean useDBAViews;
@@ -188,7 +202,7 @@ public class Comparer {
             String startFile = Helper.getProp(props, schema + ".start");
             Path startPath = realPath.getParent().resolve(startFile).toAbsolutePath();
             Path baseDir = startPath.getParent();
-            SourceRepo repoDisk = loadSource(startPath, baseDir);
+            SourceRepo repoDisk = loadSource(startPath, baseDir, charset);
             CompareRec cr = new CompareRec(schema, repoDB, repoDisk);
             cmpRecs.add(cr);
             System.out.println("loaded schema: " + schema);
@@ -417,11 +431,11 @@ public class Comparer {
         }
     }
 
-    static SourceRepo loadSource(Path filePath, Path baseDir) throws Exception {
+    static SourceRepo loadSource(Path filePath, Path baseDir, Charset charset) throws Exception {
         Map<String, ArrayList<String>> tableSources = new HashMap<>();
 
         Parser p = new Parser();
-        SqlPlus session = new SqlPlus(filePath, baseDir);
+        SqlPlus session = new SqlPlus(filePath, baseDir, charset);
         ArrayList<Snippet> l = session.process();
         SourceRepo repo = new SourceRepo();
         for (Snippet sn : l) {

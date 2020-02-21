@@ -131,6 +131,9 @@ If the usewinmerge option is given then winmerge is started to compare these two
 directories. The assumption is that the winmerge binary is at:
 C:\Program Files (x86)\WinMerge\WinMergeU.exe
 
+charset
+  the charset of the source files, if not supplied the default is ISO-8859-1
+
 Obviously the user for the given schema must be able to read the sources of all
 schemas, so either there is only one schema and the connection is for this
 schema. Otherwise the user of the connection has the SELECT ANY DICTIONARY System Privilege
