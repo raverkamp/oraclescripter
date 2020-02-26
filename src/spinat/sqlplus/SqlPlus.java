@@ -96,7 +96,10 @@ public class SqlPlus {
     }
 
     void logError(Path filePath, int lineno, String msg) {
-        System.err.println("Error at: " + filePath + ", line=" + lineno + ": " + msg);
+        System.err.println("Error at: " + filePath + ", line=" + lineno + ": " + msg +"\n");
+    }
+    void logError(String msg) {
+        System.err.print(msg+"\n");
     }
 
     // check if pattern p matches s starting at pos, return next position after pattern
@@ -390,6 +393,10 @@ public class SqlPlus {
 
     public ArrayList<Snippet> process() throws Exception {
         FileFrame ff = this.openFile(this.startFileName);
+        if (ff==null) {
+            logError("File not found: " + this.startFileName);
+            throw new RuntimeException("Can not load sources from disk.");
+        }
         this.frames.add(0, ff);
         ArrayList<Snippet> res = new ArrayList<>();
         int currentLineno;
