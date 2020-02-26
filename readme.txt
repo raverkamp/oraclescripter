@@ -121,14 +121,15 @@ X.start
   respectively "@" and "@@". 
   The filename is resolved relative to the folder of the properties file.
 
-usewinmerge
-  if equal to "y" or "Y" show the differing files with winmerge.
+winmerge_cmd
+  if this property is set (even empty) then show the differing files with winmerge. 
+  if the value is empty then a reasonbale default is chosen oetherwise use the value.
 
 The program compares for each schema the sources defined on disk with the 
 sources of the schema in the database. A temporary directory is created and the
 files that are different are stored in a subdirectory "DISK" respectively "DB".
-If the usewinmerge option is given then winmerge is started to compare these two
-directories. The assumption is that the winmerge binary is at:
+If the winmerge_cmd option is given then winmerge is started to compare these two
+directories. If the option is empty, the assumption is that the winmerge binary is at:
 C:\Program Files (x86)\WinMerge\WinMergeU.exe
 
 charset

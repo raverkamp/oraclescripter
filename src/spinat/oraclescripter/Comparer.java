@@ -217,16 +217,24 @@ public class Comparer {
         }
         System.out.println("--- done ---");
         if (hasDifferenes) {
-            System.out.printf("changes are in folder: " + tempDir);
-            if (Helper.getProp(props, "usewinmerge", "N").equalsIgnoreCase("Y")) {
-                ProcessBuilder pb = new ProcessBuilder(new String[]{"C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe",
-                    //"/r",
+            System.out.println("changes are in folder: " + tempDir);
+            String winmerge_cmd = Helper.getProp(props, "winmerge_cmd", "#");
+            if (!winmerge_cmd.equalsIgnoreCase("#")) {
+                if (winmerge_cmd == null || winmerge_cmd.trim().isEmpty()) {
+                    winmerge_cmd = "C:\\Program Files (x86)\\WinMerge\\WinMergeU.exe";
+                }
+                ProcessBuilder pb = new ProcessBuilder(new String[]{winmerge_cmd,
                     "/wl", "/wr", "/u", "/dl", "DB", "/dr", "DISK",
                     "DB",
                     "DISK"});
                 pb.directory(tempDir.toFile());
-                Process pr = pb.start();
-                pr.waitFor();
+                try {
+                    Process pr = pb.start();
+                    pr.waitFor();
+                } catch (java.io.IOException e) {
+                    System.err.println("can no start winmerge:" + e.getMessage());
+                    System.err.println("winmerge command is: " + winmerge_cmd);
+                }
             }
             if (Helper.getProp(props, "usemeld", "N").equalsIgnoreCase("Y")) {
                 ProcessBuilder pb = new ProcessBuilder(new String[]{"meld",
